@@ -40,6 +40,7 @@ dependencies {
     // modApi "dev.architectury:architectury-fabric:${rootProject.architectury_version}"
 
     modImplementation("net.fabricmc.fabric-api:fabric-api:${fabric_api_version}")
+    modImplementation("curse.maven:exposure-871755:${exposure_fabric_id}")
 
     modApi "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forge_config_api_version}"
 

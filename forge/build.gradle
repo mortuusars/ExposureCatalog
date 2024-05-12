@@ -65,6 +65,8 @@ dependencies {
     // ExposureCatalogue does not depend on Architectury API:
     // modApi "dev.architectury:architectury-forge:${rootProject.architectury_version}"
 
+    modImplementation("curse.maven:exposure-871755:${exposure_forge_id}")
+
     modCompileOnlyApi("mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}")
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-forge:${jei_version}") { transitive = false }
 

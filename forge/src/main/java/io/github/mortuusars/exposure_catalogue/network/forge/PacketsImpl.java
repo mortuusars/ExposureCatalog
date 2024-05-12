@@ -1,6 +1,7 @@
 package io.github.mortuusars.exposure_catalogue.network.forge;
 
 
+import io.github.mortuusars.exposure_catalogue.ExposureCatalogue;
 import io.github.mortuusars.exposure_catalogue.network.PacketDirection;
 import io.github.mortuusars.exposure_catalogue.network.packet.IPacket;
 import net.minecraft.resources.ResourceLocation;
@@ -18,7 +19,7 @@ public class PacketsImpl {
     private static int id = 0;
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation("exposure:packets"),
+            ExposureCatalogue.resource("packets"),
             () -> PROTOCOL_VERSION,
             PROTOCOL_VERSION::equals,
             PROTOCOL_VERSION::equals);
