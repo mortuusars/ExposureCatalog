@@ -1,9 +1,11 @@
 package io.github.mortuusars.exposure_catalogue.forge.event;
 
 import io.github.mortuusars.exposure_catalogue.ExposureCatalogue;
+import io.github.mortuusars.exposure_catalogue.command.CatalogueCommand;
 import io.github.mortuusars.exposure_catalogue.network.forge.PacketsImpl;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
+import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 
@@ -30,5 +32,9 @@ public class CommonEvents {
     }
 
     public static class ForgeBus {
+        @SubscribeEvent
+        public static void registerCommands(RegisterCommandsEvent event) {
+            CatalogueCommand.register(event.getDispatcher());
+        }
     }
 }

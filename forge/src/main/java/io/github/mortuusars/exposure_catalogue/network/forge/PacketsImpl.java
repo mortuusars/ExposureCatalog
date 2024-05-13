@@ -4,7 +4,9 @@ package io.github.mortuusars.exposure_catalogue.network.forge;
 import io.github.mortuusars.exposure_catalogue.ExposureCatalogue;
 import io.github.mortuusars.exposure_catalogue.network.PacketDirection;
 import io.github.mortuusars.exposure_catalogue.network.packet.IPacket;
-import net.minecraft.resources.ResourceLocation;
+import io.github.mortuusars.exposure_catalogue.network.packet.client.OpenCatalogueS2CP;
+import io.github.mortuusars.exposure_catalogue.network.packet.client.SendIdsS2CP;
+import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExposureIdsC2SP;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
@@ -28,8 +30,24 @@ public class PacketsImpl {
         // BOTH
 
         // SERVER
+        CHANNEL.messageBuilder(QueryAllExposureIdsC2SP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(QueryAllExposureIdsC2SP::toBuffer)
+                .decoder(QueryAllExposureIdsC2SP::fromBuffer)
+                .consumerMainThread(PacketsImpl::handlePacket)
+                .add();
 
         // CLIENT
+        CHANNEL.messageBuilder(OpenCatalogueS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(OpenCatalogueS2CP::toBuffer)
+                .decoder(OpenCatalogueS2CP::fromBuffer)
+                .consumerMainThread(PacketsImpl::handlePacket)
+                .add();
+
+        CHANNEL.messageBuilder(SendIdsS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(SendIdsS2CP::toBuffer)
+                .decoder(SendIdsS2CP::fromBuffer)
+                .consumerMainThread(PacketsImpl::handlePacket)
+                .add();
     }
 
     public static void sendToServer(IPacket packet) {

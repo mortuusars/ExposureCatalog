@@ -3,8 +3,10 @@ package io.github.mortuusars.exposure_catalogue.fabric;
 import fuzs.forgeconfigapiport.api.config.v2.ForgeConfigRegistry;
 import io.github.mortuusars.exposure_catalogue.Config;
 import io.github.mortuusars.exposure_catalogue.ExposureCatalogue;
+import io.github.mortuusars.exposure_catalogue.command.CatalogueCommand;
 import io.github.mortuusars.exposure_catalogue.network.fabric.PacketsImpl;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.world.item.CreativeModeTabs;
@@ -17,6 +19,10 @@ public class ExposureCatalogueFabric implements ModInitializer {
 
         ForgeConfigRegistry.INSTANCE.register(ExposureCatalogue.ID, ModConfig.Type.COMMON, Config.Common.SPEC);
         ForgeConfigRegistry.INSTANCE.register(ExposureCatalogue.ID, ModConfig.Type.CLIENT, Config.Client.SPEC);
+
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+            CatalogueCommand.register(dispatcher);
+        });
 
         ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(content -> {
 

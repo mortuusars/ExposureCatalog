@@ -3,6 +3,7 @@ package io.github.mortuusars.exposure_catalogue.network.fabric;
 import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure_catalogue.network.PacketDirection;
 import io.github.mortuusars.exposure_catalogue.network.packet.IPacket;
+import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExposureIdsC2SP;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -19,6 +20,7 @@ public class PacketsImpl {
     private static MinecraftServer server;
 
     public static void registerC2SPackets() {
+        ServerPlayNetworking.registerGlobalReceiver(QueryAllExposureIdsC2SP.ID, new ServerHandler(QueryAllExposureIdsC2SP::fromBuffer));
     }
 
     public static void registerS2CPackets() {
