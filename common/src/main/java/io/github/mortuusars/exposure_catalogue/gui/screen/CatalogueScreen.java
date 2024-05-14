@@ -2,6 +2,7 @@ package io.github.mortuusars.exposure_catalogue.gui.screen;
 
 import com.google.common.base.Preconditions;
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.datafixers.util.Either;
 import io.github.mortuusars.exposure.Exposure;
@@ -21,6 +22,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -32,15 +34,36 @@ import org.jetbrains.annotations.NotNull;
 import java.util.*;
 
 public class CatalogueScreen extends Screen {
+    public record Thumbnail(int index, int gridIndex, Either<String, ResourceLocation> idOrTexture, Rect2i area, boolean selected) {
+        public boolean isMouseOver(double mouseX, double mouseY) {
+            return mouseX > area.getX() && mouseX <= area.getX() + area.getWidth()
+                    && mouseY > area.getY() && mouseY <= area.getY() + area.getHeight();
+        }
+    }
+
     public static final ResourceLocation TEXTURE = ExposureCatalogue.resource("textures/gui/catalogue.png");
 
-    private int imageWidth;
-    private int imageHeight;
-    private int leftPos;
-    private int topPos;
+    public static final int ROWS = 4;
+    public static final int COLS = 6;
+    public static final Rect2i SCROLL_BAR_AREA = new Rect2i(339, 22, 7, 221);
+    public static final Rect2i SEARCH_BAR_AREA = new Rect2i(228, 7, 118, 10);
+    public static final Rect2i THUMBNAILS_GRID_AREA = new Rect2i(8, 22, 329, 221);
 
-    private List<String> ids = Collections.emptyList();
-    private int firstRow = 0;
+    protected int imageWidth;
+    protected int imageHeight;
+    protected int leftPos;
+    protected int topPos;
+
+    protected List<String> ids = Collections.emptyList();
+    protected int totalRows = 0;
+
+    protected int topRowIndex = 0;
+
+    protected boolean isDraggingScrollbar = false;
+    protected int topRowAtDragStart = 0;
+    protected double dragDelta = 0;
+
+    protected ArrayList<Thumbnail> visibleThumbnails = new ArrayList<>();
 
     public CatalogueScreen() {
         super(Component.translatable("gui.exposure_catalogue.catalogue"));
@@ -69,16 +92,42 @@ public class CatalogueScreen extends Screen {
             }
         });
 
-        this.firstRow = 0;
+        ids = ids.stream().skip(95).toList();
 
+        this.topRowIndex = 0;
         this.ids = ids;
+        this.totalRows = (int) Math.ceil(ids.size() / (float)ROWS);
+        refreshThumbnailsGrid();
+    }
+
+    public void refreshThumbnailsGrid() {
+        visibleThumbnails.clear();
+
+        for (int row = 0; row < ROWS; row++) {
+            for (int column = 0; column < COLS; column++) {
+                int gridIndex = column + row * COLS;
+                int idIndex = gridIndex + this.topRowIndex * COLS;
+
+                if (idIndex >= ids.size())
+                    break;
+
+                int thumbnailX = column * 54;
+                int thumbnailY = row * 54;
+
+                Either<String, ResourceLocation> idOrTexture = Either.left(ids.get(idIndex));
+                Rect2i area = new Rect2i(THUMBNAILS_GRID_AREA.getX() + 5 + thumbnailX,
+                        THUMBNAILS_GRID_AREA.getY() + 5 + thumbnailY, 48, 48);
+                Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, false);
+                visibleThumbnails.add(thumbnail);
+            }
+        }
     }
 
     @Override
     protected void init() {
         super.init();
-        this.imageWidth = 246;
-        this.imageHeight = 257;
+        this.imageWidth = 354;
+        this.imageHeight = 265;
         this.leftPos = width / 2 - imageWidth / 2;
         this.topPos = height / 2 - imageHeight / 2;
     }
@@ -97,95 +146,125 @@ public class CatalogueScreen extends Screen {
         guiGraphics.blit(TEXTURE, leftPos, topPos, imageWidth, imageHeight, 0, 0,
                 imageWidth, imageHeight, 512, 512);
 
-        drawScrollBar(guiGraphics);
-
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(leftPos + 13, topPos + 23, 10);
-
-        for (int row = 0; row < 4; row++) {
-            for (int column = 0; column < 4; column++) {
-                int gridIndex = column + row * 4;
-                int idIndex = gridIndex + this.firstRow * 4;
-
-                if (idIndex >= ids.size())
-                    break;
-
-                guiGraphics.fill(column * 53 - 1, row * 53, column * 53 + 49, row * 53 + 50, 0xFF555555);
-                guiGraphics.fill(column * 53 - 1, row * 53 - 1, column * 53 + 49, row * 53 + 49, 0xFFEFEFEF);
-
-                MultiBufferSource.BufferSource bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
-                ExposureClient.getExposureRenderer().render(Either.left(ids.get(idIndex)), ExposurePixelModifiers.EMPTY,
-                        guiGraphics.pose(), bufferSource, column * 53, row * 53, 48, 48);
-                bufferSource.endBatch();
-            }
-        }
-
-        guiGraphics.pose().popPose();
-
-        drawLabels(guiGraphics, mouseX, mouseY, partialTick);
-
+        renderScrollBar(guiGraphics, mouseX, mouseY, partialTick);
+        renderThumbnailsGrid(guiGraphics, mouseX, mouseY, partialTick);
+        renderLabels(guiGraphics, mouseX, mouseY, partialTick);
         renderTooltip(guiGraphics, mouseX, mouseY, partialTick);
     }
 
-    private void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        if (mouseX > leftPos + 13 && mouseX <= leftPos + 224 && mouseY > topPos + 23 && mouseY <= topPos + 234) {
-            int x = (int)mouseX - (leftPos + 13);
-            int y = (int)mouseY - (topPos + 23);
+    protected void renderThumbnailsGrid(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        for (Thumbnail thumbnail : visibleThumbnails) {
+            MultiBufferSource.BufferSource bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
+            ExposureClient.getExposureRenderer().render(thumbnail.idOrTexture(), ExposurePixelModifiers.EMPTY,
+                    guiGraphics.pose(), bufferSource, leftPos + thumbnail.area().getX(), topPos + thumbnail.area().getY(),
+                    thumbnail.area().getWidth(), thumbnail.area().getHeight());
+            bufferSource.endBatch();
 
-            int col = x / 53;
-            int row = y / 53;
+            int frameVOffset = thumbnail.isMouseOver(mouseX - leftPos, mouseY - topPos) ? 54 : 0;
 
-            int gridIndex = col + row * 4;
-            int hoverIndex = gridIndex + this.firstRow * 4;
+            RenderSystem.enableBlend();
+            // Frame overlay
+            guiGraphics.blit(TEXTURE, leftPos + thumbnail.area().getX() - 3, topPos + thumbnail.area().getY() - 3, 361, frameVOffset,
+                    54, 54, 512, 512);
+            RenderSystem.disableBlend();
+        }
 
-            if (hoverIndex >= ids.size() || hoverIndex < 0)
-                return;
+//        guiGraphics.pose().pushPose();
+//        guiGraphics.pose().translate(leftPos + THUMBNAILS_GRID_AREA.getX(), topPos + THUMBNAILS_GRID_AREA.getY(), 0);
+//
+//        for (int row = 0; row < ROWS; row++) {
+//            for (int column = 0; column < COLS; column++) {
+//                int gridIndex = column + row * COLS;
+//                int idIndex = gridIndex + this.topRowIndex * COLS;
+//
+//                if (idIndex >= ids.size())
+//                    break;
+//
+//                MultiBufferSource.BufferSource bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
+//                int thumbnailX = column * 53;
+//                int thumbnailY = row * 53;
+//                ExposureClient.getExposureRenderer().render(Either.left(ids.get(idIndex)), ExposurePixelModifiers.EMPTY,
+//                        guiGraphics.pose(), bufferSource, thumbnailX, thumbnailY, 48, 48);
+//                bufferSource.endBatch();
+//
+//                boolean mouseOver = mouseX > leftPos + THUMBNAILS_GRID_AREA.getX() + thumbnailX - 2
+//                                 && mouseX <= leftPos + THUMBNAILS_GRID_AREA.getX() + thumbnailX - 2 + 54
+//                                 && mouseY > topPos + THUMBNAILS_GRID_AREA.getY() + thumbnailY - 2
+//                                 && mouseY <= topPos + THUMBNAILS_GRID_AREA.getY() + thumbnailY - 2 + 54;
+//
+//                int frameVOffset = mouseOver ? 54 : 0;
+//
+//                // Frame overlay
+//                guiGraphics.blit(TEXTURE, thumbnailX - 2, thumbnailY - 2, 361, frameVOffset,
+//                        54, 54, 512, 512);
+//            }
+//        }
+//
+//        guiGraphics.pose().popPose();
+    }
 
-            String exposureId = ids.get(hoverIndex);
+    protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        for (Thumbnail thumbnail : visibleThumbnails) {
+            if (thumbnail.isMouseOver(mouseX - leftPos, mouseY - topPos)) {
+                String idOrTextureStr = thumbnail.idOrTexture().map(s -> s, ResourceLocation::toString);
 
-            List<Component> lines = new ArrayList<>();
-            lines.add(Component.literal(exposureId));
+                List<Component> lines = new ArrayList<>();
+                lines.add(Component.literal(idOrTextureStr));
 
-            ExposureClient.getExposureStorage().getOrQuery(exposureId).ifPresent(data -> {
-                CompoundTag properties = data.getProperties();
+                thumbnail.idOrTexture().ifLeft(exposureId -> {
+                    ExposureClient.getExposureStorage().getOrQuery(exposureId).ifPresent(data -> {
+                        CompoundTag properties = data.getProperties();
 
-                lines.add(Component.literal(data.getWidth() + "x" + data.getHeight()).withStyle(ChatFormatting.GRAY));
+                        lines.add(Component.literal(data.getWidth() + "x" + data.getHeight()).withStyle(ChatFormatting.GRAY));
 
-                if (properties.getBoolean(ExposureSavedData.WAS_PRINTED_PROPERTY))
-                    lines.add(Component.literal("Printed").withStyle(ChatFormatting.GRAY));
-            });
+                        if (properties.getBoolean(ExposureSavedData.WAS_PRINTED_PROPERTY))
+                            lines.add(Component.literal("Printed").withStyle(ChatFormatting.GRAY));
+                    });
+                });
 
-            guiGraphics.renderTooltip(font, lines, Optional.empty(), mouseX, mouseY);
+                guiGraphics.renderTooltip(font, lines, Optional.empty(), mouseX, mouseY);
+
+                break;
+            }
         }
     }
 
-    private void drawScrollBar(@NotNull GuiGraphics guiGraphics) {
-        int scrollBarHeight = 205;
-        int scrollBarStartY = 24;
-        int scrollBarEndY = 228;
+    protected void renderScrollBar(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        int size = Mth.clamp(SCROLL_BAR_AREA.getHeight() / Math.max(1, totalRows), 9, SCROLL_BAR_AREA.getHeight());
+        size = Math.max(9, size - size % 3);
+        int pos = (int)Mth.map((topRowIndex) / (float)Math.max(1, totalRows - 4), 0f, 1f, 0f, SCROLL_BAR_AREA.getHeight() - size);
 
-        int totalRows = (int) Math.ceil(ids.size() / 4f);
-        int size = Mth.clamp(scrollBarHeight / Math.max(1, totalRows), 8, scrollBarHeight);
-        int pos = (int)Mth.map((firstRow) / (float)Math.max(1, totalRows - 4), 0f, 1f, 0f, scrollBarHeight - size);
+        // Top
+        guiGraphics.blit(TEXTURE, leftPos + SCROLL_BAR_AREA.getX(), topPos + SCROLL_BAR_AREA.getY() + pos,
+                354, 0, 7, 3, 512, 512);
 
-        guiGraphics.fill(leftPos + 231, topPos + scrollBarStartY + pos, leftPos + 238, topPos + scrollBarStartY + pos + size, 0xFFcb006e);
+        // Middle
+        int middleParts = (size - 6) / 4;
+        for (int i = 0; i < middleParts; i++) {
+            guiGraphics.blit(TEXTURE, leftPos + SCROLL_BAR_AREA.getX(), topPos + SCROLL_BAR_AREA.getY() + pos + i * 4 + 3,
+                    354, 3, 7, 4, 512, 512);
+        }
+
+        // Bottom
+        guiGraphics.blit(TEXTURE, leftPos + SCROLL_BAR_AREA.getX(), topPos + SCROLL_BAR_AREA.getY() + pos + (middleParts * 4) + 3,
+                354, 7, 7, 2, 512, 512);
     }
 
-    private void drawLabels(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    protected void renderLabels(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // Title
-        guiGraphics.drawString(font, title, leftPos + 8, topPos + 6, 0xFF414141, false);
+        guiGraphics.drawString(font, title, leftPos + 8, topPos + 8, 0xFF414141, false);
 
         // Count
         if (!ids.isEmpty()) {
             String countStr = Integer.toString(ids.size());
-            guiGraphics.drawString(font, countStr, leftPos + imageWidth - 8 - font.width(countStr),
-                    topPos + 241, 0xFFFFFFFF, true);
+            guiGraphics.drawString(font, countStr, leftPos + (imageWidth / 2) - (font.width(countStr) / 2),
+                    topPos + 249, 0xFF414141, false);
         }
 
-        // Draw ids on the left
-        for (int i = 0; i < Math.min(ids.size(), 16); i++) {
-            guiGraphics.drawString(font, ids.get(i), 5, 5 + i * 9, 0xFFFFFFFF);
-        }
+//        // Draw ids on the left
+//        for (int i = 0; i < Math.min(ids.size(), 16); i++) {
+//            guiGraphics.drawString(font, ids.get(i), 5, 5 + i * 9, 0xFFFFFFFF);
+//        }
     }
 
     @Override
@@ -196,49 +275,36 @@ public class CatalogueScreen extends Screen {
         if (button != InputConstants.MOUSE_BUTTON_LEFT)
             return false;
 
-        if (mouseX > leftPos + 13 && mouseX <= leftPos + 224 && mouseY > topPos + 23 && mouseY <= topPos + 234) {
-            int x = (int)mouseX - (leftPos + 13);
-            int y = (int)mouseY - (topPos + 23);
-
-            int col = x / 53;
-            int row = y / 53;
-
-            int gridIndex = col + row * 4;
-            int hoverIndex = gridIndex + this.firstRow * 4;
-
-            if (hoverIndex >= ids.size())
-                return false;
-
-            openPhotographView(hoverIndex);
-            return true;
+        for (Thumbnail thumbnail : visibleThumbnails) {
+            if (thumbnail.isMouseOver(mouseX - leftPos, mouseY - topPos)) {
+                openPhotographView(thumbnail.index);
+                break;
+            }
         }
 
         int scrollBarHeight = 205;
         int scrollBarStartY = 24;
         int scrollBarEndY = 228;
 
-        int totalRows = (int) Math.ceil(ids.size() / 4f);
         int size = Mth.clamp(scrollBarHeight / Math.max(1, totalRows), 8, scrollBarHeight);
-        int pos = (int)Mth.map((firstRow) / (float)Math.max(1, totalRows - 4), 0f, 1f, 0f, scrollBarHeight - size);
-
-//        guiGraphics.fill(leftPos + 231, topPos + scrollBarStartY + pos, leftPos + 238, topPos + scrollBarStartY + pos + size, 0xFFcb006e);
+        int pos = (int)Mth.map((topRowIndex) / (float)Math.max(1, totalRows - 4), 0f, 1f, 0f, scrollBarHeight - size);
 
         if (mouseX > leftPos + 231 && mouseX <= leftPos + 238 && mouseY > topPos + scrollBarStartY && mouseY <= topPos + scrollBarEndY) {
             int msy = (int)mouseY - (topPos + scrollBarStartY);
             if (msy > pos && msy <= pos + size) {
                 this.setDragging(true);
-                draggingScrollbar = true;
+                isDraggingScrollbar = true;
                 dragDelta = 0;
-                rowAtDragStart = firstRow;
+                topRowAtDragStart = topRowIndex;
             }
 
             if (mouseY > topPos + scrollBarStartY + pos + size) {
-                firstRow = Math.min((int)Math.ceil(Math.max(0, ids.size() - 16) / 4f), firstRow + 1);
+                scroll(1);
                 return true;
             }
 
             if (mouseY < topPos + scrollBarStartY + pos) {
-                firstRow = Math.max(0, firstRow - 1);
+                scroll(-1);
                 return true;
             }
         }
@@ -246,35 +312,30 @@ public class CatalogueScreen extends Screen {
         return false;
     }
 
-    private boolean draggingScrollbar = false;
-    private int rowAtDragStart = 0;
-    private double dragDelta = 0;
-
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
         if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY))
             return true;
 
-        if (!draggingScrollbar || button != InputConstants.MOUSE_BUTTON_LEFT)
+        if (!isDraggingScrollbar || button != InputConstants.MOUSE_BUTTON_LEFT)
             return false;
 
         dragDelta += dragY;
 
         int scrollBarHeight = 205;
-        int scrollBarStartY = 24;
-        int scrollBarEndY = 228;
+//        int scrollBarStartY = 24;
+//        int scrollBarEndY = 228;
 
-        int totalRows = (int) Math.ceil(ids.size() / 4f);
-        int size = Mth.clamp(scrollBarHeight / Math.max(1, totalRows), 8, scrollBarHeight);
-        int pos = (int)Mth.map((firstRow) / (float)Math.max(1, totalRows - 4), 0f, 1f,
-                0f, scrollBarHeight - size);
+//        int size = Mth.clamp(scrollBarHeight / Math.max(1, totalRows), 8, scrollBarHeight);
+//        int pos = (int)Mth.map((topRowIndex) / (float)Math.max(1, totalRows - 4), 0f, 1f,
+//                0f, scrollBarHeight - size);
 
         double distance = (scrollBarHeight / Math.max(1, Math.ceil(Math.max(0, ids.size() - 16) / 4f)));
         double ddist = (dragDelta / distance);
         int dist = ddist > 0 ? (int)Math.ceil(ddist) : (int)Math.floor(ddist);
 
         if (dist != 0) {
-            firstRow = Mth.clamp(rowAtDragStart + dist, 0, (int)Math.ceil(Math.max(0, ids.size() - 16) / 4f));
+            scroll(topRowAtDragStart + dist);
         }
 
         return true;
@@ -282,7 +343,7 @@ public class CatalogueScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        draggingScrollbar = false;
+        isDraggingScrollbar = false;
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
@@ -291,20 +352,17 @@ public class CatalogueScreen extends Screen {
         if (super.mouseScrolled(mouseX, mouseY, delta))
             return true;
 
-        if (delta > 0) {
-            firstRow = Math.max(0, firstRow - 1);
-            return true;
-        }
-
-        if (delta < 0) {
-            firstRow = Math.min((int)Math.ceil(Math.max(0, ids.size() - 16) / 4f), firstRow + 1);
-            return true;
-        }
-
-        return false;
+        scroll(delta > 0 ? -1 : +1);
+        return true;
     }
 
-    private void openPhotographView(int clickedIndex) {
+    public void scroll(int rows) {
+        int maxRowWhenAtEnd = Math.max(0, (int) Math.ceil((ids.size() - ROWS * COLS) / (float) ROWS));
+        topRowIndex = Mth.clamp(topRowIndex + rows, 0, maxRowWhenAtEnd);
+        refreshThumbnailsGrid();
+    }
+
+    protected void openPhotographView(int clickedIndex) {
         List<ItemAndStack<PhotographItem>> photographs = new java.util.ArrayList<>(ids.stream().map(id -> {
             ItemStack stack = new ItemStack(Exposure.Items.PHOTOGRAPH.get());
             CompoundTag tag = new CompoundTag();
