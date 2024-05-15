@@ -22,19 +22,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.client.searchtree.FullTextSearchTree;
 import net.minecraft.client.searchtree.PlainTextSearchTree;
-import net.minecraft.client.searchtree.SearchRegistry;
-import net.minecraft.client.searchtree.SearchTree;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
-import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
@@ -106,12 +101,9 @@ public class CatalogueScreen extends Screen {
             }
         });
 
-//        ids = ids.stream().skip(95).toList();
-
         this.topRowIndex = 0;
         this.allItems = ids;
         refreshSearchResults();
-//        refreshThumbnailsGrid();
     }
 
     public void refreshThumbnailsGrid() {
@@ -129,8 +121,8 @@ public class CatalogueScreen extends Screen {
                 int thumbnailY = row * 54;
 
                 Either<String, ResourceLocation> idOrTexture = Either.left(filteredItems.get(idIndex));
-                Rect2i area = new Rect2i(THUMBNAILS_GRID_AREA.getX() + 5 + thumbnailX,
-                        THUMBNAILS_GRID_AREA.getY() + 5 + thumbnailY, 48, 48);
+                Rect2i area = new Rect2i(leftPos + THUMBNAILS_GRID_AREA.getX() + 5 + thumbnailX,
+                        topPos + THUMBNAILS_GRID_AREA.getY() + 5 + thumbnailY, 48, 48);
                 Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, false);
                 visibleThumbnails.add(thumbnail);
             }
@@ -145,12 +137,14 @@ public class CatalogueScreen extends Screen {
         this.leftPos = width / 2 - imageWidth / 2;
         this.topPos = height / 2 - imageHeight / 2;
 
-        this.searchBox = new EditBox(font, leftPos + SEARCH_BAR_AREA.getX() + 2, topPos + SEARCH_BAR_AREA.getY() + 1, SEARCH_BAR_AREA.getWidth(), font.lineHeight, Component.translatable("itemGroup.search"));
+        this.searchBox = new EditBox(font, leftPos + SEARCH_BAR_AREA.getX() + 1, topPos + SEARCH_BAR_AREA.getY() + 1, SEARCH_BAR_AREA.getWidth(), font.lineHeight, Component.translatable("itemGroup.search"));
         this.searchBox.setMaxLength(50);
         this.searchBox.setBordered(false);
         this.searchBox.setVisible(true);
         this.searchBox.setTextColor(0xFFFFFF);
         this.addRenderableWidget(this.searchBox);
+
+        refreshThumbnailsGrid();
     }
 
     @Override
@@ -165,40 +159,10 @@ public class CatalogueScreen extends Screen {
         searchBox.setValue(searchBoxValue);
     }
 
-    @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-//        if (this.ignoreTextInput) {
-//            return false;
-//        }
-        String string = this.searchBox.getValue();
-        if (this.searchBox.charTyped(codePoint, modifiers)) {
-            if (!Objects.equals(string, this.searchBox.getValue())) {
-                this.refreshSearchResults();
-            }
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        String string = this.searchBox.getValue();
-        if (this.searchBox.keyPressed(keyCode, scanCode, modifiers)) {
-            if (!Objects.equals(string, this.searchBox.getValue())) {
-                this.refreshSearchResults();
-            }
-            return true;
-        }
-        if (this.searchBox.isFocused() && this.searchBox.isVisible() && keyCode != 256) {
-            return true;
-        }
-        return super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    private void refreshSearchResults() {
+    protected void refreshSearchResults() {
         filteredItems.clear();
 
-        String filter = this.searchBox.getValue();
+        String filter = searchBox.getValue();
         if (filter.isEmpty()) {
             filteredItems.addAll(allItems);
         } else {
@@ -236,15 +200,15 @@ public class CatalogueScreen extends Screen {
         for (Thumbnail thumbnail : visibleThumbnails) {
             MultiBufferSource.BufferSource bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
             ExposureClient.getExposureRenderer().render(thumbnail.idOrTexture(), ExposurePixelModifiers.EMPTY,
-                    guiGraphics.pose(), bufferSource, leftPos + thumbnail.area().getX(), topPos + thumbnail.area().getY(),
+                    guiGraphics.pose(), bufferSource, thumbnail.area().getX(), thumbnail.area().getY(),
                     thumbnail.area().getWidth(), thumbnail.area().getHeight());
             bufferSource.endBatch();
 
-            int frameVOffset = thumbnail.isMouseOver(mouseX - leftPos, mouseY - topPos) ? 54 : 0;
+            int frameVOffset = thumbnail.isMouseOver(mouseX, mouseY) ? 54 : 0;
 
             RenderSystem.enableBlend();
             // Frame overlay
-            guiGraphics.blit(TEXTURE, leftPos + thumbnail.area().getX() - 3, topPos + thumbnail.area().getY() - 3, 371, frameVOffset,
+            guiGraphics.blit(TEXTURE, thumbnail.area().getX() - 3, thumbnail.area().getY() - 3, 371, frameVOffset,
                     54, 54, 512, 512);
             RenderSystem.disableBlend();
         }
@@ -252,7 +216,7 @@ public class CatalogueScreen extends Screen {
 
     protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         for (Thumbnail thumbnail : visibleThumbnails) {
-            if (thumbnail.isMouseOver(mouseX - leftPos, mouseY - topPos)) {
+            if (thumbnail.isMouseOver(mouseX, mouseY)) {
                 String idOrTextureStr = thumbnail.idOrTexture().map(s -> s, ResourceLocation::toString);
 
                 List<Component> lines = new ArrayList<>();
@@ -320,14 +284,24 @@ public class CatalogueScreen extends Screen {
                     topPos + 249, 0xFF414141, false);
         }
 
+        // SearchBox placeholder text
         if (searchBox.isVisible() && !searchBox.isFocused() && searchBox.getValue().isEmpty()) {
-            guiGraphics.drawString(font, Component.translatable("gui.exposure_catalogue.search_bar_placeholder_text"), leftPos + SEARCH_BAR_AREA.getX() + 2,
-                    topPos + SEARCH_BAR_AREA.getY() + 1, 0xFFBEBEBE, false);
+            guiGraphics.drawString(font, Component.translatable("gui.exposure_catalogue.search_bar_placeholder_text"),
+                    leftPos + SEARCH_BAR_AREA.getX() + 2, topPos + SEARCH_BAR_AREA.getY() + 1, 0xFFBEBEBE, false);
         }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT && searchBox.isMouseOver(mouseX, mouseY)) {
+            String value = searchBox.getValue();
+            searchBox.setValue("");
+            if (!value.equals(searchBox.getValue()))
+                refreshSearchResults();
+
+            return true;
+        }
+
         if (super.mouseClicked(mouseX, mouseY, button))
             return true;
 
@@ -335,7 +309,7 @@ public class CatalogueScreen extends Screen {
             return false;
 
         for (Thumbnail thumbnail : visibleThumbnails) {
-            if (thumbnail.isMouseOver(mouseX - leftPos, mouseY - topPos)) {
+            if (thumbnail.isMouseOver(mouseX, mouseY)) {
                 openPhotographView(thumbnail.index);
                 break;
             }
@@ -413,6 +387,57 @@ public class CatalogueScreen extends Screen {
 
         scroll(delta > 0 ? -1 : +1);
         return true;
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (searchBox.isFocused() && (keyCode == InputConstants.KEY_ESCAPE || keyCode == InputConstants.KEY_TAB)) {
+            searchBox.setFocused(false);
+            return true;
+        }
+
+        if (keyCode == InputConstants.KEY_F && Screen.hasControlDown()) {
+            searchBox.setFocused(true);
+            return true;
+        }
+
+        if (searchBox.canConsumeInput()) {
+            String string = searchBox.getValue();
+            if (searchBox.keyPressed(keyCode, scanCode, modifiers)) {
+                if (!string.equals(searchBox.getValue())) {
+                    refreshSearchResults();
+                }
+                return true;
+            }
+            else if (keyCode != InputConstants.KEY_ESCAPE)
+                return true;
+        }
+
+        if (keyCode == InputConstants.KEY_HOME) {
+            scroll(Integer.MIN_VALUE);
+            return true;
+        }
+        if (keyCode == InputConstants.KEY_END) {
+            scroll(Integer.MAX_VALUE);
+            return true;
+        }
+
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char codePoint, int modifiers) {
+        if (searchBox.canConsumeInput()) {
+            String string = searchBox.getValue();
+            if (searchBox.charTyped(codePoint, modifiers)) {
+                if (!string.equals(searchBox.getValue())) {
+                    refreshSearchResults();
+                }
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void scroll(int rows) {

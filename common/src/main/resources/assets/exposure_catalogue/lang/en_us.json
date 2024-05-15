@@ -1,3 +1,4 @@
 {
-  "gui.exposure_catalogue.catalogue": "Exposures"
+  "gui.exposure_catalogue.catalogue": "Exposures",
+  "gui.exposure_catalogue.search_bar_placeholder_text": "Search..."
 }
