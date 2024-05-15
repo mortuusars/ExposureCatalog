@@ -20,20 +20,29 @@ import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExp
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.searchtree.FullTextSearchTree;
+import net.minecraft.client.searchtree.PlainTextSearchTree;
+import net.minecraft.client.searchtree.SearchRegistry;
+import net.minecraft.client.searchtree.SearchTree;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
 public class CatalogueScreen extends Screen {
+    public static final int TEX_SIZE = 512;
+
     public record Thumbnail(int index, int gridIndex, Either<String, ResourceLocation> idOrTexture, Rect2i area, boolean selected) {
         public boolean isMouseOver(double mouseX, double mouseY) {
             return mouseX > area.getX() && mouseX <= area.getX() + area.getWidth()
@@ -45,18 +54,23 @@ public class CatalogueScreen extends Screen {
 
     public static final int ROWS = 4;
     public static final int COLS = 6;
-    public static final Rect2i SCROLL_BAR_AREA = new Rect2i(339, 22, 7, 221);
-    public static final Rect2i SEARCH_BAR_AREA = new Rect2i(228, 7, 118, 10);
-    public static final Rect2i THUMBNAILS_GRID_AREA = new Rect2i(8, 22, 329, 221);
+
+    public Rect2i WINDOW_AREA = new Rect2i(0, 0, 361, 265);
+    public Rect2i SCROLL_BAR_AREA = new Rect2i(343, 22, 10, 221);
+    public Rect2i SEARCH_BAR_AREA = new Rect2i(219, 7, 118, 10);
+    public Rect2i THUMBNAILS_GRID_AREA = new Rect2i(8, 22, 329, 221);
 
     protected int imageWidth;
     protected int imageHeight;
     protected int leftPos;
     protected int topPos;
 
-    protected List<String> ids = Collections.emptyList();
-    protected int totalRows = 0;
+    protected EditBox searchBox;
 
+    protected List<String> allItems = Collections.emptyList();
+    protected ArrayList<String> filteredItems = new ArrayList<>();
+
+    protected int totalRows = 0;
     protected int topRowIndex = 0;
 
     protected boolean isDraggingScrollbar = false;
@@ -92,12 +106,12 @@ public class CatalogueScreen extends Screen {
             }
         });
 
-        ids = ids.stream().skip(95).toList();
+//        ids = ids.stream().skip(95).toList();
 
         this.topRowIndex = 0;
-        this.ids = ids;
-        this.totalRows = (int) Math.ceil(ids.size() / (float)ROWS);
-        refreshThumbnailsGrid();
+        this.allItems = ids;
+        refreshSearchResults();
+//        refreshThumbnailsGrid();
     }
 
     public void refreshThumbnailsGrid() {
@@ -108,13 +122,13 @@ public class CatalogueScreen extends Screen {
                 int gridIndex = column + row * COLS;
                 int idIndex = gridIndex + this.topRowIndex * COLS;
 
-                if (idIndex >= ids.size())
+                if (idIndex >= filteredItems.size())
                     break;
 
                 int thumbnailX = column * 54;
                 int thumbnailY = row * 54;
 
-                Either<String, ResourceLocation> idOrTexture = Either.left(ids.get(idIndex));
+                Either<String, ResourceLocation> idOrTexture = Either.left(filteredItems.get(idIndex));
                 Rect2i area = new Rect2i(THUMBNAILS_GRID_AREA.getX() + 5 + thumbnailX,
                         THUMBNAILS_GRID_AREA.getY() + 5 + thumbnailY, 48, 48);
                 Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, false);
@@ -126,10 +140,75 @@ public class CatalogueScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        this.imageWidth = 354;
-        this.imageHeight = 265;
+        this.imageWidth = WINDOW_AREA.getWidth();
+        this.imageHeight = WINDOW_AREA.getHeight();
         this.leftPos = width / 2 - imageWidth / 2;
         this.topPos = height / 2 - imageHeight / 2;
+
+        this.searchBox = new EditBox(font, leftPos + SEARCH_BAR_AREA.getX() + 2, topPos + SEARCH_BAR_AREA.getY() + 1, SEARCH_BAR_AREA.getWidth(), font.lineHeight, Component.translatable("itemGroup.search"));
+        this.searchBox.setMaxLength(50);
+        this.searchBox.setBordered(false);
+        this.searchBox.setVisible(true);
+        this.searchBox.setTextColor(0xFFFFFF);
+        this.addRenderableWidget(this.searchBox);
+    }
+
+    @Override
+    public void tick() {
+        searchBox.tick();
+    }
+
+    @Override
+    protected void rebuildWidgets() {
+        String searchBoxValue = searchBox.getValue();
+        super.rebuildWidgets();
+        searchBox.setValue(searchBoxValue);
+    }
+
+    @Override
+    public boolean charTyped(char codePoint, int modifiers) {
+//        if (this.ignoreTextInput) {
+//            return false;
+//        }
+        String string = this.searchBox.getValue();
+        if (this.searchBox.charTyped(codePoint, modifiers)) {
+            if (!Objects.equals(string, this.searchBox.getValue())) {
+                this.refreshSearchResults();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        String string = this.searchBox.getValue();
+        if (this.searchBox.keyPressed(keyCode, scanCode, modifiers)) {
+            if (!Objects.equals(string, this.searchBox.getValue())) {
+                this.refreshSearchResults();
+            }
+            return true;
+        }
+        if (this.searchBox.isFocused() && this.searchBox.isVisible() && keyCode != 256) {
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    private void refreshSearchResults() {
+        filteredItems.clear();
+
+        String filter = this.searchBox.getValue();
+        if (filter.isEmpty()) {
+            filteredItems.addAll(allItems);
+        } else {
+            PlainTextSearchTree<String> tree = PlainTextSearchTree.create(allItems, String::lines);
+            filteredItems.addAll(tree.search(filter.toLowerCase(Locale.ROOT)));
+        }
+
+        this.totalRows = (int) Math.ceil(filteredItems.size() / (float)COLS);
+
+        scroll(Integer.MIN_VALUE);
     }
 
     @Override
@@ -140,11 +219,12 @@ public class CatalogueScreen extends Screen {
     @Override
     public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(guiGraphics);
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
 
         // Main texture
         guiGraphics.blit(TEXTURE, leftPos, topPos, imageWidth, imageHeight, 0, 0,
-                imageWidth, imageHeight, 512, 512);
+                imageWidth, imageHeight, TEX_SIZE, TEX_SIZE);
+
+        super.render(guiGraphics, mouseX, mouseY, partialTick);
 
         renderScrollBar(guiGraphics, mouseX, mouseY, partialTick);
         renderThumbnailsGrid(guiGraphics, mouseX, mouseY, partialTick);
@@ -164,43 +244,10 @@ public class CatalogueScreen extends Screen {
 
             RenderSystem.enableBlend();
             // Frame overlay
-            guiGraphics.blit(TEXTURE, leftPos + thumbnail.area().getX() - 3, topPos + thumbnail.area().getY() - 3, 361, frameVOffset,
+            guiGraphics.blit(TEXTURE, leftPos + thumbnail.area().getX() - 3, topPos + thumbnail.area().getY() - 3, 371, frameVOffset,
                     54, 54, 512, 512);
             RenderSystem.disableBlend();
         }
-
-//        guiGraphics.pose().pushPose();
-//        guiGraphics.pose().translate(leftPos + THUMBNAILS_GRID_AREA.getX(), topPos + THUMBNAILS_GRID_AREA.getY(), 0);
-//
-//        for (int row = 0; row < ROWS; row++) {
-//            for (int column = 0; column < COLS; column++) {
-//                int gridIndex = column + row * COLS;
-//                int idIndex = gridIndex + this.topRowIndex * COLS;
-//
-//                if (idIndex >= ids.size())
-//                    break;
-//
-//                MultiBufferSource.BufferSource bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
-//                int thumbnailX = column * 53;
-//                int thumbnailY = row * 53;
-//                ExposureClient.getExposureRenderer().render(Either.left(ids.get(idIndex)), ExposurePixelModifiers.EMPTY,
-//                        guiGraphics.pose(), bufferSource, thumbnailX, thumbnailY, 48, 48);
-//                bufferSource.endBatch();
-//
-//                boolean mouseOver = mouseX > leftPos + THUMBNAILS_GRID_AREA.getX() + thumbnailX - 2
-//                                 && mouseX <= leftPos + THUMBNAILS_GRID_AREA.getX() + thumbnailX - 2 + 54
-//                                 && mouseY > topPos + THUMBNAILS_GRID_AREA.getY() + thumbnailY - 2
-//                                 && mouseY <= topPos + THUMBNAILS_GRID_AREA.getY() + thumbnailY - 2 + 54;
-//
-//                int frameVOffset = mouseOver ? 54 : 0;
-//
-//                // Frame overlay
-//                guiGraphics.blit(TEXTURE, thumbnailX - 2, thumbnailY - 2, 361, frameVOffset,
-//                        54, 54, 512, 512);
-//            }
-//        }
-//
-//        guiGraphics.pose().popPose();
     }
 
     protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -230,24 +277,36 @@ public class CatalogueScreen extends Screen {
     }
 
     protected void renderScrollBar(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        int size = Mth.clamp(SCROLL_BAR_AREA.getHeight() / Math.max(1, totalRows), 9, SCROLL_BAR_AREA.getHeight());
+        int size = Mth.clamp(SCROLL_BAR_AREA.getHeight() / Math.max(1, totalRows - ROWS), 9, SCROLL_BAR_AREA.getHeight());
         size = Math.max(9, size - size % 3);
+
+        int middleParts = (size - 6) / 4;
+        if (SCROLL_BAR_AREA.getHeight() - size < 3)
+            middleParts++;
+
+        size = 3 + middleParts * 4 + 2;
+
         int pos = (int)Mth.map((topRowIndex) / (float)Math.max(1, totalRows - 4), 0f, 1f, 0f, SCROLL_BAR_AREA.getHeight() - size);
+        if (pos + size > SCROLL_BAR_AREA.getHeight())
+            pos = SCROLL_BAR_AREA.getHeight() - size;
+
+        if (topRowIndex == totalRows - ROWS)
+            pos = SCROLL_BAR_AREA.getHeight() - size;
+
 
         // Top
         guiGraphics.blit(TEXTURE, leftPos + SCROLL_BAR_AREA.getX(), topPos + SCROLL_BAR_AREA.getY() + pos,
-                354, 0, 7, 3, 512, 512);
+                361, 0, SCROLL_BAR_AREA.getWidth(), 3, 512, 512);
 
         // Middle
-        int middleParts = (size - 6) / 4;
         for (int i = 0; i < middleParts; i++) {
             guiGraphics.blit(TEXTURE, leftPos + SCROLL_BAR_AREA.getX(), topPos + SCROLL_BAR_AREA.getY() + pos + i * 4 + 3,
-                    354, 3, 7, 4, 512, 512);
+                    361, 3, SCROLL_BAR_AREA.getWidth(), 4, 512, 512);
         }
 
         // Bottom
         guiGraphics.blit(TEXTURE, leftPos + SCROLL_BAR_AREA.getX(), topPos + SCROLL_BAR_AREA.getY() + pos + (middleParts * 4) + 3,
-                354, 7, 7, 2, 512, 512);
+                361, 7, SCROLL_BAR_AREA.getWidth(), 2, 512, 512);
     }
 
     protected void renderLabels(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -255,16 +314,16 @@ public class CatalogueScreen extends Screen {
         guiGraphics.drawString(font, title, leftPos + 8, topPos + 8, 0xFF414141, false);
 
         // Count
-        if (!ids.isEmpty()) {
-            String countStr = Integer.toString(ids.size());
+        if (!filteredItems.isEmpty()) {
+            String countStr = Integer.toString(filteredItems.size());
             guiGraphics.drawString(font, countStr, leftPos + (imageWidth / 2) - (font.width(countStr) / 2),
                     topPos + 249, 0xFF414141, false);
         }
 
-//        // Draw ids on the left
-//        for (int i = 0; i < Math.min(ids.size(), 16); i++) {
-//            guiGraphics.drawString(font, ids.get(i), 5, 5 + i * 9, 0xFFFFFFFF);
-//        }
+        if (searchBox.isVisible() && !searchBox.isFocused() && searchBox.getValue().isEmpty()) {
+            guiGraphics.drawString(font, Component.translatable("gui.exposure_catalogue.search_bar_placeholder_text"), leftPos + SEARCH_BAR_AREA.getX() + 2,
+                    topPos + SEARCH_BAR_AREA.getY() + 1, 0xFFBEBEBE, false);
+        }
     }
 
     @Override
@@ -330,7 +389,7 @@ public class CatalogueScreen extends Screen {
 //        int pos = (int)Mth.map((topRowIndex) / (float)Math.max(1, totalRows - 4), 0f, 1f,
 //                0f, scrollBarHeight - size);
 
-        double distance = (scrollBarHeight / Math.max(1, Math.ceil(Math.max(0, ids.size() - 16) / 4f)));
+        double distance = (scrollBarHeight / Math.max(1, Math.ceil(Math.max(0, filteredItems.size() - 16) / 4f)));
         double ddist = (dragDelta / distance);
         int dist = ddist > 0 ? (int)Math.ceil(ddist) : (int)Math.floor(ddist);
 
@@ -357,13 +416,13 @@ public class CatalogueScreen extends Screen {
     }
 
     public void scroll(int rows) {
-        int maxRowWhenAtEnd = Math.max(0, (int) Math.ceil((ids.size() - ROWS * COLS) / (float) ROWS));
+        int maxRowWhenAtEnd = Math.max(0, (int) Math.ceil((filteredItems.size() - ROWS * COLS) / (float) COLS));
         topRowIndex = Mth.clamp(topRowIndex + rows, 0, maxRowWhenAtEnd);
         refreshThumbnailsGrid();
     }
 
     protected void openPhotographView(int clickedIndex) {
-        List<ItemAndStack<PhotographItem>> photographs = new java.util.ArrayList<>(ids.stream().map(id -> {
+        List<ItemAndStack<PhotographItem>> photographs = new java.util.ArrayList<>(filteredItems.stream().map(id -> {
             ItemStack stack = new ItemStack(Exposure.Items.PHOTOGRAPH.get());
             CompoundTag tag = new CompoundTag();
             tag.putString(FrameData.ID, id);
