@@ -6,6 +6,7 @@ import io.github.mortuusars.exposure_catalogue.network.PacketDirection;
 import io.github.mortuusars.exposure_catalogue.network.packet.IPacket;
 import io.github.mortuusars.exposure_catalogue.network.packet.client.OpenCatalogueS2CP;
 import io.github.mortuusars.exposure_catalogue.network.packet.client.SendIdsS2CP;
+import io.github.mortuusars.exposure_catalogue.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExposureIdsC2SP;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
@@ -33,6 +34,11 @@ public class PacketsImpl {
         CHANNEL.messageBuilder(QueryAllExposureIdsC2SP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(QueryAllExposureIdsC2SP::toBuffer)
                 .decoder(QueryAllExposureIdsC2SP::fromBuffer)
+                .consumerMainThread(PacketsImpl::handlePacket)
+                .add();
+        CHANNEL.messageBuilder(DeleteExposureC2SP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(DeleteExposureC2SP::toBuffer)
+                .decoder(DeleteExposureC2SP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
 

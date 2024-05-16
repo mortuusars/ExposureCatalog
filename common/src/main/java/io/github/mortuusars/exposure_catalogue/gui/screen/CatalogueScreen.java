@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.datafixers.util.Either;
+import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.Exposure;
 import io.github.mortuusars.exposure.ExposureClient;
 import io.github.mortuusars.exposure.camera.infrastructure.FrameData;
@@ -16,6 +17,7 @@ import io.github.mortuusars.exposure.render.modifiers.ExposurePixelModifiers;
 import io.github.mortuusars.exposure.util.ItemAndStack;
 import io.github.mortuusars.exposure_catalogue.ExposureCatalogue;
 import io.github.mortuusars.exposure_catalogue.network.Packets;
+import io.github.mortuusars.exposure_catalogue.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExposureIdsC2SP;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -36,6 +38,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
+import org.apache.commons.logging.Log;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -78,6 +81,10 @@ public class CatalogueScreen extends Screen {
     protected Button texturesModeButton;
     protected Rect2i scrollThumb = new Rect2i(0, 0, 0, 0);
     protected ArrayList<Thumbnail> visibleThumbnails = new ArrayList<>();
+    protected Button refreshButton;
+    protected Button importButton;
+    protected Button exportButton;
+    protected Button deleteButton;
 
     protected Mode mode = Mode.EXPOSURES;
 
@@ -126,36 +133,6 @@ public class CatalogueScreen extends Screen {
         refreshSearchResults();
     }
 
-    public void refreshThumbnailsGrid() {
-        visibleThumbnails.clear();
-
-        for (int row = 0; row < ROWS; row++) {
-            for (int column = 0; column < COLS; column++) {
-                int gridIndex = column + row * COLS;
-                int idIndex = gridIndex + this.topRowIndex * COLS;
-
-                if (idIndex >= filteredItems.size())
-                    break;
-
-                int thumbnailX = column * 54;
-                int thumbnailY = row * 54;
-
-                String item = filteredItems.get(idIndex);
-                Either<String, ResourceLocation> idOrTexture;
-                if (mode == Mode.EXPOSURES)
-                    idOrTexture = Either.left(item);
-                else
-                    idOrTexture = Either.right(new ResourceLocation(item));
-
-                Rect2i area = new Rect2i(thumbnailsArea.getX() + 5 + thumbnailX,
-                        thumbnailsArea.getY() + 5 + thumbnailY, 48, 48);
-                boolean isSelected = selectedIndexes.contains(idIndex);
-                Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, isSelected);
-                visibleThumbnails.add(thumbnail);
-            }
-        }
-    }
-
     @Override
     protected void init() {
         super.init();
@@ -185,6 +162,63 @@ public class CatalogueScreen extends Screen {
         texturesModeButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.textures_mode")));
         addRenderableWidget(texturesModeButton);
 
+        refreshButton = new ImageButton(leftPos + 7, topPos + 247, 12, 12, 449, 36,
+                12, TEXTURE, 512, 512, b -> refresh());
+        refreshButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.refresh")));
+        addRenderableWidget(refreshButton);
+
+        importButton = new ImageButton(leftPos + 26, topPos + 247, 12, 12, 461, 36,
+                12, TEXTURE, 512, 512, b -> importExposures());
+        importButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.import")));
+        addRenderableWidget(importButton);
+
+        exportButton = new ImageButton(leftPos + 41, topPos + 247, 12, 12, 473, 36,
+                12, TEXTURE, 512, 512, b -> exportExposures());
+        exportButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.export")));
+        addRenderableWidget(exportButton);
+
+        deleteButton = new ImageButton(leftPos + 342, topPos + 247, 12, 12, 473, 0,
+                12, TEXTURE, 512, 512, b -> deleteExposures());
+        deleteButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.delete")));
+        addRenderableWidget(deleteButton);
+
+        updateButtons();
+        refreshThumbnailsGrid();
+    }
+
+    protected void refresh() {
+
+    }
+
+    protected void importExposures() {
+
+    }
+
+    protected void exportExposures() {
+
+    }
+
+    protected void deleteExposures() {
+        if (mode != Mode.EXPOSURES || selectedIndexes.isEmpty() || filteredItems.isEmpty())
+            return;
+
+        ArrayList<String> removedIds = new ArrayList<>();
+
+        for (Integer index : selectedIndexes) {
+            if (index < 0 || index >= filteredItems.size())
+                continue;
+
+            String exposureId = filteredItems.get(index);
+            Packets.sendToServer(new DeleteExposureC2SP(exposureId));
+            removedIds.add(exposureId);
+        }
+
+        //noinspection RedundantOperationOnEmptyContainer
+        for (String id : removedIds) {
+            filteredItems.remove(id);
+        }
+
+        selectedIndexes.clear();
         updateButtons();
         refreshThumbnailsGrid();
     }
@@ -192,6 +226,10 @@ public class CatalogueScreen extends Screen {
     protected void updateButtons() {
         exposuresModeButton.visible = mode == Mode.TEXTURES;
         texturesModeButton.visible = mode == Mode.EXPOSURES;
+
+        importButton.active = mode == Mode.EXPOSURES;
+        exportButton.active = mode == Mode.EXPOSURES;
+        deleteButton.active = mode == Mode.EXPOSURES && !selectedIndexes.isEmpty();
     }
 
     protected void changeMode(Mode mode) {
@@ -235,6 +273,36 @@ public class CatalogueScreen extends Screen {
 
         selectedIndexes.clear();
         scroll(Integer.MIN_VALUE);
+    }
+
+    public void refreshThumbnailsGrid() {
+        visibleThumbnails.clear();
+
+        for (int row = 0; row < ROWS; row++) {
+            for (int column = 0; column < COLS; column++) {
+                int gridIndex = column + row * COLS;
+                int idIndex = gridIndex + this.topRowIndex * COLS;
+
+                if (idIndex >= filteredItems.size())
+                    break;
+
+                int thumbnailX = column * 54;
+                int thumbnailY = row * 54;
+
+                String item = filteredItems.get(idIndex);
+                Either<String, ResourceLocation> idOrTexture;
+                if (mode == Mode.EXPOSURES)
+                    idOrTexture = Either.left(item);
+                else
+                    idOrTexture = Either.right(new ResourceLocation(item));
+
+                Rect2i area = new Rect2i(thumbnailsArea.getX() + 5 + thumbnailX,
+                        thumbnailsArea.getY() + 5 + thumbnailY, 48, 48);
+                boolean isSelected = selectedIndexes.contains(idIndex);
+                Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, isSelected);
+                visibleThumbnails.add(thumbnail);
+            }
+        }
     }
 
     @Override
@@ -406,6 +474,7 @@ public class CatalogueScreen extends Screen {
                             selectionStartIndex = thumbnail.index();
                         }
                     }
+                    updateButtons();
                     refreshThumbnailsGrid();
                 }
                 else {
@@ -507,11 +576,13 @@ public class CatalogueScreen extends Screen {
             if (keyCode == InputConstants.KEY_A) {
                 selectedIndexes.clear();
                 selectedIndexes.addAll(IntStream.range(0, filteredItems.size()).boxed().toList());
+                updateButtons();
                 refreshThumbnailsGrid();
                 return true;
             }
             if (keyCode == InputConstants.KEY_D) {
                 selectedIndexes.clear();
+                updateButtons();
                 refreshThumbnailsGrid();
                 return true;
             }

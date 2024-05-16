@@ -6,6 +6,7 @@
   "client": [
   ],
   "mixins": [
+    "ServersideExposureStorageAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

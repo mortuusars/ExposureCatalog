@@ -4,5 +4,9 @@
   "gui.exposure_catalogue.catalogue.exposures": "Exposures",
   "gui.exposure_catalogue.catalogue.exposures_mode": "Exposures",
   "gui.exposure_catalogue.catalogue.textures": "Textures",
-  "gui.exposure_catalogue.catalogue.textures_mode": "Textures"
+  "gui.exposure_catalogue.catalogue.textures_mode": "Textures",
+  "gui.exposure_catalogue.catalogue.refresh": "Refresh",
+  "gui.exposure_catalogue.catalogue.import": "Import",
+  "gui.exposure_catalogue.catalogue.export": "Export",
+  "gui.exposure_catalogue.catalogue.delete": "Delete"
 }
