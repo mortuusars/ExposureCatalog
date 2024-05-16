@@ -38,10 +38,11 @@ import java.util.*;
 public class CatalogueScreen extends Screen {
     public static final int TEX_SIZE = 512;
 
-    public record Thumbnail(int index, int gridIndex, Either<String, ResourceLocation> idOrTexture, Rect2i area, boolean selected) {
+    public record Thumbnail(int index, int gridIndex, Either<String, ResourceLocation> idOrTexture, Rect2i area,
+                            boolean selected) {
         public boolean isMouseOver(double mouseX, double mouseY) {
-            return mouseX > area.getX() && mouseX <= area.getX() + area.getWidth()
-                    && mouseY > area.getY() && mouseY <= area.getY() + area.getHeight();
+            return mouseX >= area.getX() && mouseX < area.getX() + area.getWidth()
+                    && mouseY >= area.getY() && mouseY < area.getY() + area.getHeight();
         }
     }
 
@@ -50,17 +51,21 @@ public class CatalogueScreen extends Screen {
     public static final int ROWS = 4;
     public static final int COLS = 6;
 
-    public Rect2i WINDOW_AREA = new Rect2i(0, 0, 361, 265);
-    public Rect2i SCROLL_BAR_AREA = new Rect2i(343, 22, 10, 221);
-    public Rect2i SEARCH_BAR_AREA = new Rect2i(219, 7, 118, 10);
-    public Rect2i THUMBNAILS_GRID_AREA = new Rect2i(8, 22, 329, 221);
-
     protected int imageWidth;
     protected int imageHeight;
     protected int leftPos;
     protected int topPos;
+    protected Rect2i windowArea = new Rect2i(0, 0, 361, 265);
+    protected Rect2i scrollBarArea = new Rect2i(343, 22, 10, 221);
+    protected int scrollThumbTopHeight = 3;
+    protected int scrollThumbMidHeight = 4;
+    protected int scrollThumbBotHeight = 2;
+    protected Rect2i searchBarArea = new Rect2i(219, 7, 118, 10);
+    protected Rect2i thumbnailsArea = new Rect2i(8, 22, 329, 221);
 
     protected EditBox searchBox;
+    protected Rect2i scrollThumb = new Rect2i(0, 0, 0, 0);
+    protected ArrayList<Thumbnail> visibleThumbnails = new ArrayList<>();
 
     protected List<String> allItems = Collections.emptyList();
     protected ArrayList<String> filteredItems = new ArrayList<>();
@@ -69,10 +74,8 @@ public class CatalogueScreen extends Screen {
     protected int topRowIndex = 0;
 
     protected boolean isDraggingScrollbar = false;
-    protected int topRowAtDragStart = 0;
+    protected int topRowIndexAtDragStart = 0;
     protected double dragDelta = 0;
-
-    protected ArrayList<Thumbnail> visibleThumbnails = new ArrayList<>();
 
     public CatalogueScreen() {
         super(Component.translatable("gui.exposure_catalogue.catalogue"));
@@ -121,8 +124,8 @@ public class CatalogueScreen extends Screen {
                 int thumbnailY = row * 54;
 
                 Either<String, ResourceLocation> idOrTexture = Either.left(filteredItems.get(idIndex));
-                Rect2i area = new Rect2i(leftPos + THUMBNAILS_GRID_AREA.getX() + 5 + thumbnailX,
-                        topPos + THUMBNAILS_GRID_AREA.getY() + 5 + thumbnailY, 48, 48);
+                Rect2i area = new Rect2i(thumbnailsArea.getX() + 5 + thumbnailX,
+                        thumbnailsArea.getY() + 5 + thumbnailY, 48, 48);
                 Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, false);
                 visibleThumbnails.add(thumbnail);
             }
@@ -132,12 +135,16 @@ public class CatalogueScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        this.imageWidth = WINDOW_AREA.getWidth();
-        this.imageHeight = WINDOW_AREA.getHeight();
+        this.imageWidth = windowArea.getWidth();
+        this.imageHeight = windowArea.getHeight();
         this.leftPos = width / 2 - imageWidth / 2;
         this.topPos = height / 2 - imageHeight / 2;
 
-        this.searchBox = new EditBox(font, leftPos + SEARCH_BAR_AREA.getX() + 1, topPos + SEARCH_BAR_AREA.getY() + 1, SEARCH_BAR_AREA.getWidth(), font.lineHeight, Component.translatable("itemGroup.search"));
+        scrollBarArea = new Rect2i(leftPos + 343, topPos + 22, 10, 221);
+        searchBarArea = new Rect2i(leftPos + 219, topPos + 7, 118, 10);
+        thumbnailsArea = new Rect2i(leftPos + 8, topPos + 22, 329, 221);
+
+        this.searchBox = new EditBox(font, searchBarArea.getX() + 1, searchBarArea.getY() + 1, searchBarArea.getWidth(), font.lineHeight, Component.translatable("itemGroup.search"));
         this.searchBox.setMaxLength(50);
         this.searchBox.setBordered(false);
         this.searchBox.setVisible(true);
@@ -170,7 +177,7 @@ public class CatalogueScreen extends Screen {
             filteredItems.addAll(tree.search(filter.toLowerCase(Locale.ROOT)));
         }
 
-        this.totalRows = (int) Math.ceil(filteredItems.size() / (float)COLS);
+        this.totalRows = (int) Math.ceil(filteredItems.size() / (float) COLS);
 
         scroll(Integer.MIN_VALUE);
     }
@@ -240,37 +247,37 @@ public class CatalogueScreen extends Screen {
         }
     }
 
+    protected boolean isMouseOver(Rect2i rect, double mouseX, double mouseY) {
+        return mouseX >= rect.getX() && mouseX < rect.getX() + rect.getWidth()
+                && mouseY >= rect.getY() && mouseY < rect.getY() + rect.getHeight();
+    }
+
     protected void renderScrollBar(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        int size = Mth.clamp(SCROLL_BAR_AREA.getHeight() / Math.max(1, totalRows - ROWS), 9, SCROLL_BAR_AREA.getHeight());
-        size = Math.max(9, size - size % 3);
+        int state = 0;
+        if (!canScroll())
+            state = 2;
+        else if (isDraggingScrollbar || isMouseOver(scrollThumb, mouseX, mouseY))
+            state = 1;
 
-        int middleParts = (size - 6) / 4;
-        if (SCROLL_BAR_AREA.getHeight() - size < 3)
-            middleParts++;
-
-        size = 3 + middleParts * 4 + 2;
-
-        int pos = (int)Mth.map((topRowIndex) / (float)Math.max(1, totalRows - 4), 0f, 1f, 0f, SCROLL_BAR_AREA.getHeight() - size);
-        if (pos + size > SCROLL_BAR_AREA.getHeight())
-            pos = SCROLL_BAR_AREA.getHeight() - size;
-
-        if (topRowIndex == totalRows - ROWS)
-            pos = SCROLL_BAR_AREA.getHeight() - size;
-
+        int thumbStateOffset = scrollThumbTopHeight + scrollThumbMidHeight + scrollThumbBotHeight;
 
         // Top
-        guiGraphics.blit(TEXTURE, leftPos + SCROLL_BAR_AREA.getX(), topPos + SCROLL_BAR_AREA.getY() + pos,
-                361, 0, SCROLL_BAR_AREA.getWidth(), 3, 512, 512);
+        guiGraphics.blit(TEXTURE, scrollThumb.getX(), scrollThumb.getY(),
+                361, state * thumbStateOffset,
+                scrollThumb.getWidth(), scrollThumbTopHeight, 512, 512);
 
         // Middle
+        int middleParts = (scrollThumb.getHeight() - 3 - 2) / 4;
         for (int i = 0; i < middleParts; i++) {
-            guiGraphics.blit(TEXTURE, leftPos + SCROLL_BAR_AREA.getX(), topPos + SCROLL_BAR_AREA.getY() + pos + i * 4 + 3,
-                    361, 3, SCROLL_BAR_AREA.getWidth(), 4, 512, 512);
+            guiGraphics.blit(TEXTURE, scrollThumb.getX(), scrollThumb.getY() + i * 4 + 3,
+                    361, scrollThumbTopHeight + state * thumbStateOffset,
+                    scrollThumb.getWidth(), scrollThumbMidHeight, 512, 512);
         }
 
         // Bottom
-        guiGraphics.blit(TEXTURE, leftPos + SCROLL_BAR_AREA.getX(), topPos + SCROLL_BAR_AREA.getY() + pos + (middleParts * 4) + 3,
-                361, 7, SCROLL_BAR_AREA.getWidth(), 2, 512, 512);
+        guiGraphics.blit(TEXTURE, scrollThumb.getX(), scrollThumb.getY() + (middleParts * 4) + 3,
+                361, scrollThumbTopHeight + scrollThumbMidHeight + state * thumbStateOffset,
+                scrollThumb.getWidth(), scrollThumbBotHeight, 512, 512);
     }
 
     protected void renderLabels(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -287,12 +294,15 @@ public class CatalogueScreen extends Screen {
         // SearchBox placeholder text
         if (searchBox.isVisible() && !searchBox.isFocused() && searchBox.getValue().isEmpty()) {
             guiGraphics.drawString(font, Component.translatable("gui.exposure_catalogue.search_bar_placeholder_text"),
-                    leftPos + SEARCH_BAR_AREA.getX() + 2, topPos + SEARCH_BAR_AREA.getY() + 1, 0xFFBEBEBE, false);
+                    searchBarArea.getX() + 2, searchBarArea.getY() + 1, 0xFFBEBEBE, false);
         }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (getFocused() == searchBox && !searchBox.isMouseOver(mouseX, mouseY))
+            setFocused(null);
+
         if (button == InputConstants.MOUSE_BUTTON_RIGHT && searchBox.isMouseOver(mouseX, mouseY)) {
             String value = searchBox.getValue();
             searchBox.setValue("");
@@ -315,29 +325,16 @@ public class CatalogueScreen extends Screen {
             }
         }
 
-        int scrollBarHeight = 205;
-        int scrollBarStartY = 24;
-        int scrollBarEndY = 228;
-
-        int size = Mth.clamp(scrollBarHeight / Math.max(1, totalRows), 8, scrollBarHeight);
-        int pos = (int)Mth.map((topRowIndex) / (float)Math.max(1, totalRows - 4), 0f, 1f, 0f, scrollBarHeight - size);
-
-        if (mouseX > leftPos + 231 && mouseX <= leftPos + 238 && mouseY > topPos + scrollBarStartY && mouseY <= topPos + scrollBarEndY) {
-            int msy = (int)mouseY - (topPos + scrollBarStartY);
-            if (msy > pos && msy <= pos + size) {
+        if (canScroll()) {
+            if (isMouseOver(scrollThumb, mouseX, mouseY)) {
                 this.setDragging(true);
                 isDraggingScrollbar = true;
                 dragDelta = 0;
-                topRowAtDragStart = topRowIndex;
-            }
-
-            if (mouseY > topPos + scrollBarStartY + pos + size) {
-                scroll(1);
+                topRowIndexAtDragStart = topRowIndex;
                 return true;
-            }
-
-            if (mouseY < topPos + scrollBarStartY + pos) {
-                scroll(-1);
+            } else if (isMouseOver(scrollBarArea, mouseX, mouseY)) {
+                int direction = mouseY < scrollThumb.getY() ? -1 : 1;
+                scroll(ROWS * direction);
                 return true;
             }
         }
@@ -355,20 +352,10 @@ public class CatalogueScreen extends Screen {
 
         dragDelta += dragY;
 
-        int scrollBarHeight = 205;
-//        int scrollBarStartY = 24;
-//        int scrollBarEndY = 228;
-
-//        int size = Mth.clamp(scrollBarHeight / Math.max(1, totalRows), 8, scrollBarHeight);
-//        int pos = (int)Mth.map((topRowIndex) / (float)Math.max(1, totalRows - 4), 0f, 1f,
-//                0f, scrollBarHeight - size);
-
-        double distance = (scrollBarHeight / Math.max(1, Math.ceil(Math.max(0, filteredItems.size() - 16) / 4f)));
-        double ddist = (dragDelta / distance);
-        int dist = ddist > 0 ? (int)Math.ceil(ddist) : (int)Math.floor(ddist);
-
-        if (dist != 0) {
-            scroll(topRowAtDragStart + dist);
+        double threshold = (double) scrollBarArea.getHeight() / Math.max(totalRows, 1);
+        int rows = (int) (dragDelta / threshold);
+        if (rows != 0 || topRowIndex != topRowIndexAtDragStart) {
+            scrollTo(topRowIndexAtDragStart + rows);
         }
 
         return true;
@@ -385,19 +372,19 @@ public class CatalogueScreen extends Screen {
         if (super.mouseScrolled(mouseX, mouseY, delta))
             return true;
 
-        scroll(delta > 0 ? -1 : +1);
+        scroll((int) -delta);
         return true;
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (searchBox.isFocused() && (keyCode == InputConstants.KEY_ESCAPE || keyCode == InputConstants.KEY_TAB)) {
-            searchBox.setFocused(false);
+            setFocused(null);
             return true;
         }
 
         if (keyCode == InputConstants.KEY_F && Screen.hasControlDown()) {
-            searchBox.setFocused(true);
+            setFocused(searchBox);
             return true;
         }
 
@@ -408,8 +395,7 @@ public class CatalogueScreen extends Screen {
                     refreshSearchResults();
                 }
                 return true;
-            }
-            else if (keyCode != InputConstants.KEY_ESCAPE)
+            } else if (keyCode != InputConstants.KEY_ESCAPE)
                 return true;
         }
 
@@ -440,10 +426,34 @@ public class CatalogueScreen extends Screen {
         return false;
     }
 
+    public boolean canScroll() {
+        return totalRows > ROWS;
+    }
+
     public void scroll(int rows) {
+        scrollTo(topRowIndex + rows);
+    }
+
+    public void scrollTo(int row) {
         int maxRowWhenAtEnd = Math.max(0, (int) Math.ceil((filteredItems.size() - ROWS * COLS) / (float) COLS));
-        topRowIndex = Mth.clamp(topRowIndex + rows, 0, maxRowWhenAtEnd);
+        topRowIndex = Mth.clamp(row, 0, maxRowWhenAtEnd);
+        updateScrollThumb();
         refreshThumbnailsGrid();
+    }
+
+    protected void updateScrollThumb() {
+        int minSize = scrollThumbTopHeight + scrollThumbMidHeight + scrollThumbBotHeight;
+
+        float ratio = ROWS / (float) Math.max(totalRows, 1);
+        int size = Mth.clamp(Mth.ceil(scrollBarArea.getHeight() * ratio), minSize, scrollBarArea.getHeight());
+        int midSize = size - scrollThumbTopHeight - scrollThumbBotHeight;
+        int correctedMidSize = Math.max(midSize - (midSize % scrollThumbMidHeight), scrollThumbMidHeight);
+        size = scrollThumbTopHeight + correctedMidSize + scrollThumbBotHeight;
+
+        float topRowPos = (float) topRowIndex / Math.max(1, totalRows - ROWS);
+        int pos = (int) Mth.map(topRowPos, 0f, 1f, 0f, scrollBarArea.getHeight() - size);
+
+        scrollThumb = new Rect2i(scrollBarArea.getX(), scrollBarArea.getY() + pos, scrollBarArea.getWidth(), size);
     }
 
     protected void openPhotographView(int clickedIndex) {
