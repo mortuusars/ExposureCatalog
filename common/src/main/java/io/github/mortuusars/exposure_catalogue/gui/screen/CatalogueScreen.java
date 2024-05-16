@@ -31,6 +31,7 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.searchtree.PlainTextSearchTree;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.Mth;
@@ -38,6 +39,7 @@ import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.stream.IntStream;
 
 public class CatalogueScreen extends Screen {
     public static final int TEX_SIZE = 512;
@@ -82,6 +84,8 @@ public class CatalogueScreen extends Screen {
     protected List<String> exposureIds = Collections.emptyList();
     protected List<String> textures = Collections.emptyList();
     protected ArrayList<String> filteredItems = new ArrayList<>();
+    protected ArrayList<Integer> selectedIndexes = new ArrayList<>();
+    protected int selectionStartIndex = 0;
 
     protected int totalRows = 0;
     protected int topRowIndex = 0;
@@ -145,7 +149,8 @@ public class CatalogueScreen extends Screen {
 
                 Rect2i area = new Rect2i(thumbnailsArea.getX() + 5 + thumbnailX,
                         thumbnailsArea.getY() + 5 + thumbnailY, 48, 48);
-                Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, false);
+                boolean isSelected = selectedIndexes.contains(idIndex);
+                Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, isSelected);
                 visibleThumbnails.add(thumbnail);
             }
         }
@@ -228,6 +233,7 @@ public class CatalogueScreen extends Screen {
 
         this.totalRows = (int) Math.ceil(filteredItems.size() / (float) COLS);
 
+        selectedIndexes.clear();
         scroll(Integer.MIN_VALUE);
     }
 
@@ -260,7 +266,8 @@ public class CatalogueScreen extends Screen {
                     thumbnail.area().getWidth(), thumbnail.area().getHeight());
             bufferSource.endBatch();
 
-            int frameVOffset = thumbnail.isMouseOver(mouseX, mouseY) ? 54 : 0;
+            int frameVOffset = thumbnail.selected() ? 108 :
+                    thumbnail.isMouseOver(mouseX, mouseY) ? 54 : 0;
 
             RenderSystem.enableBlend();
             // Frame overlay
@@ -337,8 +344,17 @@ public class CatalogueScreen extends Screen {
 
         // Count
         if (!filteredItems.isEmpty()) {
-            String countStr = Integer.toString(filteredItems.size());
-            guiGraphics.drawString(font, countStr, leftPos + (imageWidth / 2) - (font.width(countStr) / 2),
+            String filteredCountStr = Integer.toString(filteredItems.size());
+
+            Component countComponent = Component.literal(filteredCountStr).withStyle(Style.EMPTY.withColor(0xFF414141));
+            if (!selectedIndexes.isEmpty()) {
+                String selectedCountStr = Integer.toString(selectedIndexes.size());
+                countComponent = Component.literal(selectedCountStr).withStyle(Style.EMPTY.withColor(0xFF3858db))
+                        .append(Component.literal("/").withStyle(Style.EMPTY.withColor(0xFF414141)))
+                        .append(countComponent);
+            }
+
+            guiGraphics.drawString(font, countComponent, leftPos + (imageWidth / 2) - (font.width(countComponent) / 2),
                     topPos + 249, 0xFF414141, false);
         }
 
@@ -373,8 +389,29 @@ public class CatalogueScreen extends Screen {
 
         for (Thumbnail thumbnail : visibleThumbnails) {
             if (thumbnail.isMouseOver(mouseX, mouseY)) {
-                openPhotographView(thumbnail.index);
-                break;
+                if (Screen.hasControlDown()) {
+                    if (Screen.hasShiftDown()) {
+                        int start = Math.min(thumbnail.index(), selectionStartIndex);
+                        int end = Math.max(thumbnail.index(), selectionStartIndex);
+                        for (int i = start; i <= end; i++) {
+                            if (!selectedIndexes.contains(i))
+                                selectedIndexes.add(i);
+                        }
+                    }
+                    else {
+                        if (selectedIndexes.contains(thumbnail.index))
+                            selectedIndexes.remove(Integer.valueOf(thumbnail.index()));
+                        else {
+                            selectedIndexes.add(thumbnail.index());
+                            selectionStartIndex = thumbnail.index();
+                        }
+                    }
+                    refreshThumbnailsGrid();
+                }
+                else {
+                    openPhotographView(thumbnail.index());
+                }
+                return true;
             }
         }
 
@@ -428,15 +465,14 @@ public class CatalogueScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (searchBox.isFocused() && (keyCode == InputConstants.KEY_ESCAPE || keyCode == InputConstants.KEY_TAB)) {
+        if (searchBox.isFocused() && (keyCode == InputConstants.KEY_ESCAPE /*|| keyCode == InputConstants.KEY_TAB*/)) {
             setFocused(null);
             return true;
         }
 
-        if (keyCode == InputConstants.KEY_F && Screen.hasControlDown()) {
-            setFocused(searchBox);
-            return true;
-        }
+        // Move focus away from search box
+        if (keyCode == InputConstants.KEY_TAB)
+            return super.keyPressed(keyCode, scanCode, modifiers);
 
         if (searchBox.canConsumeInput()) {
             String string = searchBox.getValue();
@@ -461,6 +497,24 @@ public class CatalogueScreen extends Screen {
         if (Minecraft.getInstance().options.keyInventory.matches(keyCode, scanCode)) {
             this.onClose();
             return true;
+        }
+
+        if (Screen.hasControlDown()) {
+            if (keyCode == InputConstants.KEY_F) {
+                setFocused(searchBox);
+                return true;
+            }
+            if (keyCode == InputConstants.KEY_A) {
+                selectedIndexes.clear();
+                selectedIndexes.addAll(IntStream.range(0, filteredItems.size()).boxed().toList());
+                refreshThumbnailsGrid();
+                return true;
+            }
+            if (keyCode == InputConstants.KEY_D) {
+                selectedIndexes.clear();
+                refreshThumbnailsGrid();
+                return true;
+            }
         }
 
         return super.keyPressed(keyCode, scanCode, modifiers);
