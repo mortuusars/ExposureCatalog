@@ -458,6 +458,11 @@ public class CatalogueScreen extends Screen {
             return true;
         }
 
+        if (Minecraft.getInstance().options.keyInventory.matches(keyCode, scanCode)) {
+            this.onClose();
+            return true;
+        }
+
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
