@@ -20,7 +20,10 @@ import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExp
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.ImageButton;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Rect2i;
@@ -29,6 +32,7 @@ import net.minecraft.client.searchtree.PlainTextSearchTree;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
@@ -44,6 +48,10 @@ public class CatalogueScreen extends Screen {
             return mouseX >= area.getX() && mouseX < area.getX() + area.getWidth()
                     && mouseY >= area.getY() && mouseY < area.getY() + area.getHeight();
         }
+    }
+
+    public enum Mode {
+        EXPOSURES, TEXTURES;
     }
 
     public static final ResourceLocation TEXTURE = ExposureCatalogue.resource("textures/gui/catalogue.png");
@@ -64,10 +72,15 @@ public class CatalogueScreen extends Screen {
     protected Rect2i thumbnailsArea = new Rect2i(8, 22, 329, 221);
 
     protected EditBox searchBox;
+    protected Button exposuresModeButton;
+    protected Button texturesModeButton;
     protected Rect2i scrollThumb = new Rect2i(0, 0, 0, 0);
     protected ArrayList<Thumbnail> visibleThumbnails = new ArrayList<>();
 
-    protected List<String> allItems = Collections.emptyList();
+    protected Mode mode = Mode.EXPOSURES;
+
+    protected List<String> exposureIds = Collections.emptyList();
+    protected List<String> textures = Collections.emptyList();
     protected ArrayList<String> filteredItems = new ArrayList<>();
 
     protected int totalRows = 0;
@@ -105,7 +118,7 @@ public class CatalogueScreen extends Screen {
         });
 
         this.topRowIndex = 0;
-        this.allItems = ids;
+        this.exposureIds = ids;
         refreshSearchResults();
     }
 
@@ -123,7 +136,13 @@ public class CatalogueScreen extends Screen {
                 int thumbnailX = column * 54;
                 int thumbnailY = row * 54;
 
-                Either<String, ResourceLocation> idOrTexture = Either.left(filteredItems.get(idIndex));
+                String item = filteredItems.get(idIndex);
+                Either<String, ResourceLocation> idOrTexture;
+                if (mode == Mode.EXPOSURES)
+                    idOrTexture = Either.left(item);
+                else
+                    idOrTexture = Either.right(new ResourceLocation(item));
+
                 Rect2i area = new Rect2i(thumbnailsArea.getX() + 5 + thumbnailX,
                         thumbnailsArea.getY() + 5 + thumbnailY, 48, 48);
                 Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, false);
@@ -144,14 +163,42 @@ public class CatalogueScreen extends Screen {
         searchBarArea = new Rect2i(leftPos + 219, topPos + 7, 118, 10);
         thumbnailsArea = new Rect2i(leftPos + 8, topPos + 22, 329, 221);
 
-        this.searchBox = new EditBox(font, searchBarArea.getX() + 1, searchBarArea.getY() + 1, searchBarArea.getWidth(), font.lineHeight, Component.translatable("itemGroup.search"));
-        this.searchBox.setMaxLength(50);
-        this.searchBox.setBordered(false);
-        this.searchBox.setVisible(true);
-        this.searchBox.setTextColor(0xFFFFFF);
-        this.addRenderableWidget(this.searchBox);
+        searchBox = new EditBox(font, searchBarArea.getX() + 1, searchBarArea.getY() + 1, searchBarArea.getWidth(), font.lineHeight, Component.translatable("itemGroup.search"));
+        searchBox.setMaxLength(50);
+        searchBox.setBordered(false);
+        searchBox.setVisible(true);
+        searchBox.setTextColor(0xFFFFFF);
+        addRenderableWidget(searchBox);
 
+        exposuresModeButton = new ImageButton(leftPos + 342, topPos + 6, 12, 12, 449, 0,
+                12, TEXTURE, 512, 512, b -> changeMode(Mode.EXPOSURES));
+        exposuresModeButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.exposures_mode")));
+        addRenderableWidget(exposuresModeButton);
+
+        texturesModeButton = new ImageButton(leftPos + 342, topPos + 6, 12, 12, 461, 0,
+                12, TEXTURE, 512, 512, b -> changeMode(Mode.TEXTURES));
+        texturesModeButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.textures_mode")));
+        addRenderableWidget(texturesModeButton);
+
+        updateButtons();
         refreshThumbnailsGrid();
+    }
+
+    protected void updateButtons() {
+        exposuresModeButton.visible = mode == Mode.TEXTURES;
+        texturesModeButton.visible = mode == Mode.EXPOSURES;
+    }
+
+    protected void changeMode(Mode mode) {
+        this.mode = mode;
+
+        if (mode == Mode.TEXTURES && textures.isEmpty()) {
+            Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
+            textures = resources.keySet().stream().map(ResourceLocation::toString).toList();
+        }
+
+        updateButtons();
+        refreshSearchResults();
     }
 
     @Override
@@ -169,11 +216,13 @@ public class CatalogueScreen extends Screen {
     protected void refreshSearchResults() {
         filteredItems.clear();
 
+        List<String> items = mode == Mode.EXPOSURES ? exposureIds : textures;
+
         String filter = searchBox.getValue();
         if (filter.isEmpty()) {
-            filteredItems.addAll(allItems);
+            filteredItems.addAll(items);
         } else {
-            PlainTextSearchTree<String> tree = PlainTextSearchTree.create(allItems, String::lines);
+            PlainTextSearchTree<String> tree = PlainTextSearchTree.create(items, String::lines);
             filteredItems.addAll(tree.search(filter.toLowerCase(Locale.ROOT)));
         }
 
@@ -282,6 +331,8 @@ public class CatalogueScreen extends Screen {
 
     protected void renderLabels(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // Title
+        Component title = mode == Mode.EXPOSURES ? Component.translatable("gui.exposure_catalogue.catalogue.exposures")
+                : Component.translatable("gui.exposure_catalogue.catalogue.textures");
         guiGraphics.drawString(font, title, leftPos + 8, topPos + 8, 0xFF414141, false);
 
         // Count
@@ -293,7 +344,7 @@ public class CatalogueScreen extends Screen {
 
         // SearchBox placeholder text
         if (searchBox.isVisible() && !searchBox.isFocused() && searchBox.getValue().isEmpty()) {
-            guiGraphics.drawString(font, Component.translatable("gui.exposure_catalogue.search_bar_placeholder_text"),
+            guiGraphics.drawString(font, Component.translatable("gui.exposure_catalogue.catalogue.search_bar_placeholder_text"),
                     searchBarArea.getX() + 2, searchBarArea.getY() + 1, 0xFFBEBEBE, false);
         }
     }
@@ -308,6 +359,8 @@ public class CatalogueScreen extends Screen {
             searchBox.setValue("");
             if (!value.equals(searchBox.getValue()))
                 refreshSearchResults();
+
+            setFocused(searchBox);
 
             return true;
         }
@@ -344,11 +397,8 @@ public class CatalogueScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (super.mouseDragged(mouseX, mouseY, button, dragX, dragY))
-            return true;
-
         if (!isDraggingScrollbar || button != InputConstants.MOUSE_BUTTON_LEFT)
-            return false;
+            return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
 
         dragDelta += dragY;
 
@@ -457,10 +507,12 @@ public class CatalogueScreen extends Screen {
     }
 
     protected void openPhotographView(int clickedIndex) {
-        List<ItemAndStack<PhotographItem>> photographs = new java.util.ArrayList<>(filteredItems.stream().map(id -> {
+        List<ItemAndStack<PhotographItem>> photographs = new ArrayList<>(filteredItems.stream().map(item -> {
             ItemStack stack = new ItemStack(Exposure.Items.PHOTOGRAPH.get());
             CompoundTag tag = new CompoundTag();
-            tag.putString(FrameData.ID, id);
+
+            tag.putString(mode == Mode.EXPOSURES ? FrameData.ID : FrameData.TEXTURE, item);
+
             stack.setTag(tag);
             return new ItemAndStack<PhotographItem>(stack);
         }).toList());

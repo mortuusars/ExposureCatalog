@@ -1,4 +1,8 @@
 {
   "gui.exposure_catalogue.catalogue": "Exposures",
-  "gui.exposure_catalogue.search_bar_placeholder_text": "Search..."
+  "gui.exposure_catalogue.catalogue.search_bar_placeholder_text": "Search...",
+  "gui.exposure_catalogue.catalogue.exposures": "Exposures",
+  "gui.exposure_catalogue.catalogue.exposures_mode": "Exposures",
+  "gui.exposure_catalogue.catalogue.textures": "Textures",
+  "gui.exposure_catalogue.catalogue.textures_mode": "Textures"
 }
