@@ -555,16 +555,12 @@ public class CatalogueScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (searchBox.isFocused() && (keyCode == InputConstants.KEY_ESCAPE /*|| keyCode == InputConstants.KEY_TAB*/)) {
+        if (searchBox.isFocused() && (keyCode == InputConstants.KEY_ESCAPE)) {
             setFocused(null);
             return true;
         }
 
-        // Move focus away from search box
-        if (keyCode == InputConstants.KEY_TAB)
-            return super.keyPressed(keyCode, scanCode, modifiers);
-
-        if (searchBox.canConsumeInput()) {
+        if (searchBox.canConsumeInput() && keyCode != InputConstants.KEY_TAB) {
             String string = searchBox.getValue();
             if (searchBox.keyPressed(keyCode, scanCode, modifiers)) {
                 if (!string.equals(searchBox.getValue())) {
