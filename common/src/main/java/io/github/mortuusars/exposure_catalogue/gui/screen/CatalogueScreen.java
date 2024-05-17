@@ -5,7 +5,6 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.datafixers.util.Either;
-import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.Exposure;
 import io.github.mortuusars.exposure.ExposureClient;
 import io.github.mortuusars.exposure.camera.infrastructure.FrameData;
@@ -32,13 +31,13 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.searchtree.PlainTextSearchTree;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
-import org.apache.commons.logging.Log;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -80,7 +79,7 @@ public class CatalogueScreen extends Screen {
     protected Button exposuresModeButton;
     protected Button texturesModeButton;
     protected Rect2i scrollThumb = new Rect2i(0, 0, 0, 0);
-    protected ArrayList<Thumbnail> visibleThumbnails = new ArrayList<>();
+    protected ArrayList<Thumbnail> thumbnails = new ArrayList<>();
     protected Button refreshButton;
     protected Button importButton;
     protected Button exportButton;
@@ -179,11 +178,12 @@ public class CatalogueScreen extends Screen {
 
         deleteButton = new ImageButton(leftPos + 342, topPos + 247, 12, 12, 473, 0,
                 12, TEXTURE, 512, 512, b -> deleteExposures());
-        deleteButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.delete")));
+        deleteButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.delete")
+                .append("\n")
+                .append(Component.translatable("gui.exposure_catalogue.catalogue.delete.tooltip"))));
         addRenderableWidget(deleteButton);
 
-        updateButtons();
-        refreshThumbnailsGrid();
+        onSelectionChanged();
     }
 
     protected void refresh() {
@@ -199,6 +199,28 @@ public class CatalogueScreen extends Screen {
     }
 
     protected void deleteExposures() {
+        if (mode != Mode.EXPOSURES || selectedIndexes.isEmpty() || filteredItems.isEmpty())
+            return;
+
+        if (Screen.hasShiftDown())
+            deleteExposuresNoConfirm();
+        else {
+            Component message;
+            if (selectedIndexes.size() == 1) {
+                String exposureId = filteredItems.get(selectedIndexes.get(0));
+                message = Component.translatable("gui.exposure_catalogue.catalogue.confirm.message.delete_one", exposureId);
+            }
+            else {
+                message = Component.translatable("gui.exposure_catalogue.catalogue.confirm.message.delete_many", selectedIndexes.size());
+            }
+
+            Screen confirmScreen  = new ConfirmScreen(this, message, CommonComponents.GUI_YES,
+                    b -> deleteExposuresNoConfirm(), CommonComponents.GUI_NO, b -> {});
+            Minecraft.getInstance().setScreen(confirmScreen);
+        }
+    }
+
+    protected void deleteExposuresNoConfirm() {
         if (mode != Mode.EXPOSURES || selectedIndexes.isEmpty() || filteredItems.isEmpty())
             return;
 
@@ -219,8 +241,7 @@ public class CatalogueScreen extends Screen {
         }
 
         selectedIndexes.clear();
-        updateButtons();
-        refreshThumbnailsGrid();
+        onSelectionChanged();
     }
 
     protected void updateButtons() {
@@ -276,7 +297,7 @@ public class CatalogueScreen extends Screen {
     }
 
     public void refreshThumbnailsGrid() {
-        visibleThumbnails.clear();
+        thumbnails.clear();
 
         for (int row = 0; row < ROWS; row++) {
             for (int column = 0; column < COLS; column++) {
@@ -300,7 +321,7 @@ public class CatalogueScreen extends Screen {
                         thumbnailsArea.getY() + 5 + thumbnailY, 48, 48);
                 boolean isSelected = selectedIndexes.contains(idIndex);
                 Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, isSelected);
-                visibleThumbnails.add(thumbnail);
+                thumbnails.add(thumbnail);
             }
         }
     }
@@ -327,7 +348,7 @@ public class CatalogueScreen extends Screen {
     }
 
     protected void renderThumbnailsGrid(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        for (Thumbnail thumbnail : visibleThumbnails) {
+        for (Thumbnail thumbnail : thumbnails) {
             MultiBufferSource.BufferSource bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
             ExposureClient.getExposureRenderer().render(thumbnail.idOrTexture(), ExposurePixelModifiers.EMPTY,
                     guiGraphics.pose(), bufferSource, thumbnail.area().getX(), thumbnail.area().getY(),
@@ -346,7 +367,7 @@ public class CatalogueScreen extends Screen {
     }
 
     protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        for (Thumbnail thumbnail : visibleThumbnails) {
+        for (Thumbnail thumbnail : thumbnails) {
             if (thumbnail.isMouseOver(mouseX, mouseY)) {
                 String idOrTextureStr = thumbnail.idOrTexture().map(s -> s, ResourceLocation::toString);
 
@@ -452,36 +473,36 @@ public class CatalogueScreen extends Screen {
         if (super.mouseClicked(mouseX, mouseY, button))
             return true;
 
-        if (button != InputConstants.MOUSE_BUTTON_LEFT)
+        if (button == InputConstants.MOUSE_BUTTON_MIDDLE)
             return false;
 
-        for (Thumbnail thumbnail : visibleThumbnails) {
-            if (thumbnail.isMouseOver(mouseX, mouseY)) {
-                if (Screen.hasControlDown()) {
-                    if (Screen.hasShiftDown()) {
-                        int start = Math.min(thumbnail.index(), selectionStartIndex);
-                        int end = Math.max(thumbnail.index(), selectionStartIndex);
-                        for (int i = start; i <= end; i++) {
-                            if (!selectedIndexes.contains(i))
-                                selectedIndexes.add(i);
-                        }
+        for (Thumbnail thumbnail : thumbnails) {
+            if (!thumbnail.isMouseOver(mouseX, mouseY))
+                continue;
+
+            if (Screen.hasControlDown() || button == InputConstants.MOUSE_BUTTON_RIGHT) {
+                if (Screen.hasShiftDown()) {
+                    int start = Math.min(thumbnail.index(), selectionStartIndex);
+                    int end = Math.max(thumbnail.index(), selectionStartIndex);
+                    for (int i = start; i <= end; i++) {
+                        if (!selectedIndexes.contains(i))
+                            selectedIndexes.add(i);
                     }
-                    else {
-                        if (selectedIndexes.contains(thumbnail.index))
-                            selectedIndexes.remove(Integer.valueOf(thumbnail.index()));
-                        else {
-                            selectedIndexes.add(thumbnail.index());
-                            selectionStartIndex = thumbnail.index();
-                        }
-                    }
-                    updateButtons();
-                    refreshThumbnailsGrid();
                 }
                 else {
-                    openPhotographView(thumbnail.index());
+                    if (selectedIndexes.contains(thumbnail.index))
+                        selectedIndexes.remove(Integer.valueOf(thumbnail.index()));
+                    else {
+                        selectedIndexes.add(thumbnail.index());
+                        selectionStartIndex = thumbnail.index();
+                    }
                 }
-                return true;
+                onSelectionChanged();
             }
+            else {
+                openPhotographView(thumbnail.index());
+            }
+            return true;
         }
 
         if (canScroll()) {
@@ -568,6 +589,11 @@ public class CatalogueScreen extends Screen {
             return true;
         }
 
+        if (keyCode == InputConstants.KEY_DELETE) {
+            deleteExposures();
+            return true;
+        }
+
         if (Screen.hasControlDown()) {
             if (keyCode == InputConstants.KEY_F) {
                 setFocused(searchBox);
@@ -576,19 +602,22 @@ public class CatalogueScreen extends Screen {
             if (keyCode == InputConstants.KEY_A) {
                 selectedIndexes.clear();
                 selectedIndexes.addAll(IntStream.range(0, filteredItems.size()).boxed().toList());
-                updateButtons();
-                refreshThumbnailsGrid();
+                onSelectionChanged();
                 return true;
             }
             if (keyCode == InputConstants.KEY_D) {
                 selectedIndexes.clear();
-                updateButtons();
-                refreshThumbnailsGrid();
+                onSelectionChanged();
                 return true;
             }
         }
 
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    private void onSelectionChanged() {
+        updateButtons();
+        refreshThumbnailsGrid();
     }
 
     @Override

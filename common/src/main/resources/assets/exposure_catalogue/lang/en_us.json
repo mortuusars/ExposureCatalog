@@ -8,5 +8,8 @@
   "gui.exposure_catalogue.catalogue.refresh": "Refresh",
   "gui.exposure_catalogue.catalogue.import": "Import",
   "gui.exposure_catalogue.catalogue.export": "Export",
-  "gui.exposure_catalogue.catalogue.delete": "Delete"
+  "gui.exposure_catalogue.catalogue.delete": "Delete",
+  "gui.exposure_catalogue.catalogue.delete.tooltip": "§8Hold [§7Shift§8] to delete without confirmation",
+  "gui.exposure_catalogue.catalogue.confirm.message.delete_one": "Are you sure you want to permanently delete %s?",
+  "gui.exposure_catalogue.catalogue.confirm.message.delete_many": "Are you sure you want to permanently delete %s exposures?"
 }
