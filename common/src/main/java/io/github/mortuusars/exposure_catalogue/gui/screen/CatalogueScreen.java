@@ -79,7 +79,7 @@ public class CatalogueScreen extends Screen {
     protected Button exposuresModeButton;
     protected Button texturesModeButton;
     protected Rect2i scrollThumb = new Rect2i(0, 0, 0, 0);
-    protected ArrayList<Thumbnail> thumbnails = new ArrayList<>();
+    protected List<Thumbnail> thumbnails = Collections.synchronizedList(new ArrayList<>());
     protected Button refreshButton;
     protected Button importButton;
     protected Button exportButton;
@@ -103,7 +103,7 @@ public class CatalogueScreen extends Screen {
     public CatalogueScreen() {
         super(Component.translatable("gui.exposure_catalogue.catalogue"));
 
-        Packets.sendToServer(new QueryAllExposureIdsC2SP());
+        refresh();
     }
 
     public void setExposureIds(@NotNull List<String> ids) {
@@ -187,7 +187,15 @@ public class CatalogueScreen extends Screen {
     }
 
     protected void refresh() {
-
+        if (mode == Mode.EXPOSURES) {
+            Packets.sendToServer(new QueryAllExposureIdsC2SP());
+        }
+        else if (mode == Mode.TEXTURES) {
+            Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
+            textures = resources.keySet().stream().map(ResourceLocation::toString).toList();
+            selectedIndexes.clear();
+            onSelectionChanged();
+        }
     }
 
     protected void importExposures() {
@@ -256,9 +264,9 @@ public class CatalogueScreen extends Screen {
     protected void changeMode(Mode mode) {
         this.mode = mode;
 
-        if (mode == Mode.TEXTURES && textures.isEmpty()) {
-            Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
-            textures = resources.keySet().stream().map(ResourceLocation::toString).toList();
+        if ((mode == Mode.EXPOSURES && exposureIds.isEmpty()) ||
+                (mode == Mode.TEXTURES && textures.isEmpty())) {
+            refresh();
         }
 
         updateButtons();

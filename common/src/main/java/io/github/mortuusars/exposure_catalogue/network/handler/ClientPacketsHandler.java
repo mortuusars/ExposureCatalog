@@ -17,8 +17,10 @@ public class ClientPacketsHandler {
     }
 
     public static void populateIds(SendIdsS2CP packet) {
-        if (Minecraft.getInstance().screen instanceof CatalogueScreen catalogueScreen) {
-            catalogueScreen.setExposureIds(packet.ids());
-        }
+        executeOnMainThread(() -> {
+            if (Minecraft.getInstance().screen instanceof CatalogueScreen catalogueScreen) {
+                catalogueScreen.setExposureIds(packet.ids());
+            }
+        });
     }
 }
