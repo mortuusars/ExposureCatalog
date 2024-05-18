@@ -7,7 +7,11 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.datafixers.util.Either;
 import io.github.mortuusars.exposure.Exposure;
 import io.github.mortuusars.exposure.ExposureClient;
+import io.github.mortuusars.exposure.ExposureServer;
 import io.github.mortuusars.exposure.camera.infrastructure.FrameData;
+import io.github.mortuusars.exposure.data.ExposureLook;
+import io.github.mortuusars.exposure.data.ExposureSize;
+import io.github.mortuusars.exposure.data.storage.ExposureExporter;
 import io.github.mortuusars.exposure.data.storage.ExposureSavedData;
 import io.github.mortuusars.exposure.gui.screen.PhotographScreen;
 import io.github.mortuusars.exposure.gui.screen.album.AlbumPhotographScreen;
@@ -17,6 +21,7 @@ import io.github.mortuusars.exposure.util.ItemAndStack;
 import io.github.mortuusars.exposure_catalogue.ExposureCatalogue;
 import io.github.mortuusars.exposure_catalogue.network.Packets;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.DeleteExposureC2SP;
+import io.github.mortuusars.exposure_catalogue.network.packet.server.ExportExposureC2SP;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExposureIdsC2SP;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -31,15 +36,17 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.searchtree.PlainTextSearchTree;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.CommonComponents;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.storage.LevelResource;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import javax.tools.Tool;
+import java.io.File;
 import java.util.*;
 import java.util.stream.IntStream;
 
@@ -81,11 +88,14 @@ public class CatalogueScreen extends Screen {
     protected Rect2i scrollThumb = new Rect2i(0, 0, 0, 0);
     protected List<Thumbnail> thumbnails = Collections.synchronizedList(new ArrayList<>());
     protected Button refreshButton;
-    protected Button importButton;
+    //    protected Button importButton;
     protected Button exportButton;
     protected Button deleteButton;
 
     protected Mode mode = Mode.EXPOSURES;
+
+    protected ExposureSize exportSize = ExposureSize.X1;
+    protected ExposureLook exportLook = ExposureLook.REGULAR;
 
     protected List<String> exposureIds = Collections.emptyList();
     protected List<String> textures = Collections.emptyList();
@@ -166,13 +176,71 @@ public class CatalogueScreen extends Screen {
         refreshButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.refresh")));
         addRenderableWidget(refreshButton);
 
-        importButton = new ImageButton(leftPos + 26, topPos + 247, 12, 12, 461, 36,
-                12, TEXTURE, 512, 512, b -> importExposures());
-        importButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.import")));
-        addRenderableWidget(importButton);
+        exportButton = new ImageButton(leftPos + 26, topPos + 247, 12, 12, 473, 36,
+                12, TEXTURE, 512, 512, b -> exportExposures()) {
+            @Override
+            public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+                if (isHoveredOrFocused())
+                    setTooltip(Tooltip.create(createExportButtonTooltip()));
+                super.render(guiGraphics, mouseX, mouseY, partialTick);
+            }
 
-        exportButton = new ImageButton(leftPos + 41, topPos + 247, 12, 12, 473, 36,
-                12, TEXTURE, 512, 512, b -> exportExposures());
+            @Override
+            public boolean mouseClicked(double mouseX, double mouseY, int button) {
+                if (!isHoveredOrFocused() || !this.active || !this.visible || button != InputConstants.MOUSE_BUTTON_RIGHT)
+                    return super.mouseClicked(mouseX, mouseY, button);
+
+                if (Screen.hasControlDown()) {
+                    exportSize = ExposureSize.values()[(exportSize.ordinal() + 1) % ExposureSize.values().length];
+                    return true;
+                }
+
+                if (Screen.hasShiftDown()) {
+                    exportLook = ExposureLook.values()[(exportLook.ordinal() + 1) % ExposureLook.values().length];
+                    return true;
+                }
+
+                return super.mouseClicked(mouseX, mouseY, button);
+            }
+
+            @Override
+            public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+                if (!isHoveredOrFocused() || !this.active || !this.visible)
+                    return super.mouseScrolled(mouseX, mouseY, delta);
+
+                if (Screen.hasControlDown()) {
+                    int newValue = exportSize.ordinal() - (int) delta;
+                    if (newValue < 0)
+                        newValue = ExposureSize.values().length - 1;
+                    else if (newValue >= ExposureSize.values().length)
+                        newValue = 0;
+
+                    if (exportSize != ExposureSize.values()[newValue]) {
+                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
+                                Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
+                        exportSize = ExposureSize.values()[newValue];
+                    }
+                    return true;
+                }
+
+                if (Screen.hasShiftDown()) {
+                    int newValue = exportLook.ordinal() - (int) delta;
+                    if (newValue < 0)
+                        newValue = ExposureLook.values().length - 1;
+                    else if (newValue >= ExposureLook.values().length)
+                        newValue = 0;
+
+                    if (exportLook != ExposureLook.values()[newValue]) {
+                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
+                                Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
+                        exportLook = ExposureLook.values()[newValue];
+                    }
+                    return true;
+                }
+
+                return super.mouseScrolled(mouseX, mouseY, delta);
+            }
+        };
         exportButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.export")));
         addRenderableWidget(exportButton);
 
@@ -186,11 +254,46 @@ public class CatalogueScreen extends Screen {
         onSelectionChanged();
     }
 
+    protected Component createExportButtonTooltip() {
+        MutableComponent tooltip = selectedIndexes.isEmpty() || selectedIndexes.size() == exposureIds.size() ?
+                Component.translatable("gui.exposure_catalogue.catalogue.export.all")
+                : Component.translatable("gui.exposure_catalogue.catalogue.export.selected");
+
+
+        tooltip.append("\n");
+        tooltip.append(Component.translatable("gui.exposure_catalogue.catalogue.export.location_info"));
+
+        tooltip.append("\n")
+                .append("\n")
+                .append(Component.translatable("gui.exposure_catalogue.catalogue.export.size"));
+
+        for (ExposureSize size : ExposureSize.values()) {
+            tooltip.append("\n");
+            tooltip.append(Component.translatable("gui.exposure_catalogue.catalogue.export.size." + size.getSerializedName())
+                    .withStyle(exportSize == size ? ChatFormatting.GOLD : ChatFormatting.GRAY));
+        }
+
+        tooltip.append("\n")
+                .append("\n")
+                .append(Component.translatable("gui.exposure_catalogue.catalogue.export.look"));
+
+        for (ExposureLook look : ExposureLook.values()) {
+            tooltip.append("\n")
+                    .append(Component.translatable("gui.exposure_catalogue.catalogue.export.look." + look.getSerializedName())
+                            .withStyle(exportLook == look ? ChatFormatting.GOLD : ChatFormatting.GRAY));
+        }
+
+        tooltip.append("\n")
+                .append("\n")
+                .append(Component.translatable("gui.exposure_catalogue.catalogue.export.control_info"));
+
+        return tooltip;
+    }
+
     protected void refresh() {
         if (mode == Mode.EXPOSURES) {
             Packets.sendToServer(new QueryAllExposureIdsC2SP());
-        }
-        else if (mode == Mode.TEXTURES) {
+        } else if (mode == Mode.TEXTURES) {
             Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
             textures = resources.keySet().stream().map(ResourceLocation::toString).toList();
             selectedIndexes.clear();
@@ -203,7 +306,17 @@ public class CatalogueScreen extends Screen {
     }
 
     protected void exportExposures() {
-
+        if (!selectedIndexes.isEmpty()) {
+            for (int index : selectedIndexes) {
+                String exposureId = filteredItems.get(index);
+                Packets.sendToServer(new ExportExposureC2SP(exposureId, exportSize, exportLook));
+            }
+        }
+        else {
+            for (String exposureId : filteredItems) {
+                Packets.sendToServer(new ExportExposureC2SP(exposureId, exportSize, exportLook));
+            }
+        }
     }
 
     protected void deleteExposures() {
@@ -217,13 +330,13 @@ public class CatalogueScreen extends Screen {
             if (selectedIndexes.size() == 1) {
                 String exposureId = filteredItems.get(selectedIndexes.get(0));
                 message = Component.translatable("gui.exposure_catalogue.catalogue.confirm.message.delete_one", exposureId);
-            }
-            else {
+            } else {
                 message = Component.translatable("gui.exposure_catalogue.catalogue.confirm.message.delete_many", selectedIndexes.size());
             }
 
-            Screen confirmScreen  = new ConfirmScreen(this, message, CommonComponents.GUI_YES,
-                    b -> deleteExposuresNoConfirm(), CommonComponents.GUI_NO, b -> {});
+            Screen confirmScreen = new ConfirmScreen(this, message, CommonComponents.GUI_YES,
+                    b -> deleteExposuresNoConfirm(), CommonComponents.GUI_NO, b -> {
+            });
             Minecraft.getInstance().setScreen(confirmScreen);
         }
     }
@@ -256,7 +369,7 @@ public class CatalogueScreen extends Screen {
         exposuresModeButton.visible = mode == Mode.TEXTURES;
         texturesModeButton.visible = mode == Mode.EXPOSURES;
 
-        importButton.active = mode == Mode.EXPOSURES;
+//        importButton.active = mode == Mode.EXPOSURES;
         exportButton.active = mode == Mode.EXPOSURES;
         deleteButton.active = mode == Mode.EXPOSURES && !selectedIndexes.isEmpty();
     }
@@ -496,8 +609,7 @@ public class CatalogueScreen extends Screen {
                         if (!selectedIndexes.contains(i))
                             selectedIndexes.add(i);
                     }
-                }
-                else {
+                } else {
                     if (selectedIndexes.contains(thumbnail.index))
                         selectedIndexes.remove(Integer.valueOf(thumbnail.index()));
                     else {
@@ -506,8 +618,7 @@ public class CatalogueScreen extends Screen {
                     }
                 }
                 onSelectionChanged();
-            }
-            else {
+            } else {
                 openPhotographView(thumbnail.index());
             }
             return true;

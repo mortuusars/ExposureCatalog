@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure_catalogue.network.PacketDirection;
 import io.github.mortuusars.exposure_catalogue.network.packet.IPacket;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.DeleteExposureC2SP;
+import io.github.mortuusars.exposure_catalogue.network.packet.server.ExportExposureC2SP;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExposureIdsC2SP;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
@@ -23,6 +24,7 @@ public class PacketsImpl {
     public static void registerC2SPackets() {
         ServerPlayNetworking.registerGlobalReceiver(QueryAllExposureIdsC2SP.ID, new ServerHandler(QueryAllExposureIdsC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(DeleteExposureC2SP.ID, new ServerHandler(DeleteExposureC2SP::fromBuffer));
+        ServerPlayNetworking.registerGlobalReceiver(ExportExposureC2SP.ID, new ServerHandler(ExportExposureC2SP::fromBuffer));
     }
 
     public static void registerS2CPackets() {

@@ -55,7 +55,7 @@ public class ConfirmScreen extends Screen {
                     onClose();
                     onNoButtonPress.onPress(button);
                 })
-                .bounds(leftPos + 124, topPos + 60, 108, 19)
+                .bounds(leftPos + 123, topPos + 60, 108, 19)
                 .build());
     }
 
