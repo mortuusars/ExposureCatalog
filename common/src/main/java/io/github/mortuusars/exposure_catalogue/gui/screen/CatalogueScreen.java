@@ -260,6 +260,7 @@ public class CatalogueScreen extends Screen {
         addRenderableWidget(deleteButton);
 
         onSelectionChanged();
+        updateScrollThumb();
     }
 
     protected Component createExportButtonTooltip() {
