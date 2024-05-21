@@ -7,11 +7,9 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.datafixers.util.Either;
 import io.github.mortuusars.exposure.Exposure;
 import io.github.mortuusars.exposure.ExposureClient;
-import io.github.mortuusars.exposure.ExposureServer;
 import io.github.mortuusars.exposure.camera.infrastructure.FrameData;
 import io.github.mortuusars.exposure.data.ExposureLook;
 import io.github.mortuusars.exposure.data.ExposureSize;
-import io.github.mortuusars.exposure.data.storage.ExposureExporter;
 import io.github.mortuusars.exposure.data.storage.ExposureSavedData;
 import io.github.mortuusars.exposure.gui.screen.PhotographScreen;
 import io.github.mortuusars.exposure.gui.screen.album.AlbumPhotographScreen;
@@ -36,17 +34,16 @@ import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.searchtree.PlainTextSearchTree;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.*;
+import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.storage.LevelResource;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import javax.tools.Tool;
-import java.io.File;
 import java.util.*;
 import java.util.stream.IntStream;
 
@@ -88,7 +85,6 @@ public class CatalogueScreen extends Screen {
     protected Rect2i scrollThumb = new Rect2i(0, 0, 0, 0);
     protected List<Thumbnail> thumbnails = Collections.synchronizedList(new ArrayList<>());
     protected Button refreshButton;
-    //    protected Button importButton;
     protected Button exportButton;
     protected Button deleteButton;
 
@@ -192,11 +188,15 @@ public class CatalogueScreen extends Screen {
 
                 if (Screen.hasControlDown()) {
                     exportSize = ExposureSize.values()[(exportSize.ordinal() + 1) % ExposureSize.values().length];
+                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
+                            Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
                     return true;
                 }
 
                 if (Screen.hasShiftDown()) {
                     exportLook = ExposureLook.values()[(exportLook.ordinal() + 1) % ExposureLook.values().length];
+                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
+                            Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
                     return true;
                 }
 
@@ -301,10 +301,6 @@ public class CatalogueScreen extends Screen {
         }
     }
 
-    protected void importExposures() {
-
-    }
-
     protected void exportExposures() {
         if (!selectedIndexes.isEmpty()) {
             for (int index : selectedIndexes) {
@@ -369,7 +365,6 @@ public class CatalogueScreen extends Screen {
         exposuresModeButton.visible = mode == Mode.TEXTURES;
         texturesModeButton.visible = mode == Mode.EXPOSURES;
 
-//        importButton.active = mode == Mode.EXPOSURES;
         exportButton.active = mode == Mode.EXPOSURES;
         deleteButton.active = mode == Mode.EXPOSURES && !selectedIndexes.isEmpty();
     }
