@@ -1,6 +1,5 @@
 package io.github.mortuusars.exposure_catalogue.gui.screen;
 
-import com.google.common.base.Preconditions;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.Tesselator;
@@ -20,7 +19,7 @@ import io.github.mortuusars.exposure_catalogue.ExposureCatalogue;
 import io.github.mortuusars.exposure_catalogue.network.Packets;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.ExportExposureC2SP;
-import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExposureIdsC2SP;
+import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExposuresC2SP;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -93,6 +92,7 @@ public class CatalogueScreen extends Screen {
     protected ExposureSize exportSize = ExposureSize.X1;
     protected ExposureLook exportLook = ExposureLook.REGULAR;
 
+    protected Map<String, CompoundTag> exposures = new HashMap<>();
     protected List<String> exposureIds = Collections.emptyList();
     protected List<String> textures = Collections.emptyList();
     protected ArrayList<String> filteredItems = new ArrayList<>();
@@ -112,30 +112,38 @@ public class CatalogueScreen extends Screen {
         refresh();
     }
 
-    public void setExposureIds(@NotNull List<String> ids) {
-        Preconditions.checkNotNull(ids);
+    public void setExposures(@NotNull List<CompoundTag> exposuresMetadataList) {
+        exposures.clear();
 
-        ids.sort(new Comparator<String>() {
-            public int compare(String o1, String o2) {
-                return extractTick(o1) - extractTick(o2);
-            }
+        for (CompoundTag tag : exposuresMetadataList) {
+            String exposureId = tag.getString("Id");
+            exposures.put(exposureId, tag);
+        }
 
-            int extractTick(String s) {
-                s = s.replace("_chromatic", "");
-                int first = s.indexOf('_');
+        exposureIds = new ArrayList<>(exposures.keySet());
 
-                String secondPart = first == -1 ? s : s.substring(first + 1);
-                int next = secondPart.indexOf('_');
-                int endIndex = next != -1 ? next : secondPart.length() - 1;
-                String num = secondPart.substring(0, endIndex).replaceAll("\\D", "");
-                // return 0 if no digits found
-                return num.isEmpty() ? 0 : Integer.parseInt(num);
-            }
-        });
+        if (mode == Mode.EXPOSURES) {
+            this.topRowIndex = 0;
+            refreshSearchResults();
+        }
 
-        this.topRowIndex = 0;
-        this.exposureIds = ids;
-        refreshSearchResults();
+//        exposuresMetadataList.sort(new Comparator<String>() {
+//            public int compare(String o1, String o2) {
+//                return extractTick(o1) - extractTick(o2);
+//            }
+//
+//            int extractTick(String s) {
+//                s = s.replace("_chromatic", "");
+//                int first = s.indexOf('_');
+//
+//                String secondPart = first == -1 ? s : s.substring(first + 1);
+//                int next = secondPart.indexOf('_');
+//                int endIndex = next != -1 ? next : secondPart.length() - 1;
+//                String num = secondPart.substring(0, endIndex).replaceAll("\\D", "");
+//                // return 0 if no digits found
+//                return num.isEmpty() ? 0 : Integer.parseInt(num);
+//            }
+//        });
     }
 
     @Override
@@ -292,7 +300,7 @@ public class CatalogueScreen extends Screen {
 
     protected void refresh() {
         if (mode == Mode.EXPOSURES) {
-            Packets.sendToServer(new QueryAllExposureIdsC2SP());
+            Packets.sendToServer(new QueryAllExposuresC2SP());
         } else if (mode == Mode.TEXTURES) {
             Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
             textures = resources.keySet().stream().map(ResourceLocation::toString).toList();

@@ -5,10 +5,10 @@ import io.github.mortuusars.exposure_catalogue.ExposureCatalogue;
 import io.github.mortuusars.exposure_catalogue.network.PacketDirection;
 import io.github.mortuusars.exposure_catalogue.network.packet.IPacket;
 import io.github.mortuusars.exposure_catalogue.network.packet.client.OpenCatalogueS2CP;
-import io.github.mortuusars.exposure_catalogue.network.packet.client.SendIdsS2CP;
+import io.github.mortuusars.exposure_catalogue.network.packet.client.SendExposuresPartS2CP;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.ExportExposureC2SP;
-import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExposureIdsC2SP;
+import io.github.mortuusars.exposure_catalogue.network.packet.server.QueryAllExposuresC2SP;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
@@ -32,9 +32,9 @@ public class PacketsImpl {
         // BOTH
 
         // SERVER
-        CHANNEL.messageBuilder(QueryAllExposureIdsC2SP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .encoder(QueryAllExposureIdsC2SP::toBuffer)
-                .decoder(QueryAllExposureIdsC2SP::fromBuffer)
+        CHANNEL.messageBuilder(QueryAllExposuresC2SP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(QueryAllExposuresC2SP::toBuffer)
+                .decoder(QueryAllExposuresC2SP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
         CHANNEL.messageBuilder(DeleteExposureC2SP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
@@ -55,9 +55,9 @@ public class PacketsImpl {
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
 
-        CHANNEL.messageBuilder(SendIdsS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .encoder(SendIdsS2CP::toBuffer)
-                .decoder(SendIdsS2CP::fromBuffer)
+        CHANNEL.messageBuilder(SendExposuresPartS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(SendExposuresPartS2CP::toBuffer)
+                .decoder(SendExposuresPartS2CP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
     }

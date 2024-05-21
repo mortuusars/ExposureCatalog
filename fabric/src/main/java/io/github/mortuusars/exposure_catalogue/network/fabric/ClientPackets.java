@@ -3,7 +3,7 @@ package io.github.mortuusars.exposure_catalogue.network.fabric;
 import io.github.mortuusars.exposure_catalogue.network.PacketDirection;
 import io.github.mortuusars.exposure_catalogue.network.packet.IPacket;
 import io.github.mortuusars.exposure_catalogue.network.packet.client.OpenCatalogueS2CP;
-import io.github.mortuusars.exposure_catalogue.network.packet.client.SendIdsS2CP;
+import io.github.mortuusars.exposure_catalogue.network.packet.client.SendExposuresPartS2CP;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
@@ -16,7 +16,7 @@ import java.util.function.Function;
 public class ClientPackets {
     public static void registerS2CPackets() {
         ClientPlayNetworking.registerGlobalReceiver(OpenCatalogueS2CP.ID, new ClientHandler(OpenCatalogueS2CP::fromBuffer));
-        ClientPlayNetworking.registerGlobalReceiver(SendIdsS2CP.ID, new ClientHandler(SendIdsS2CP::fromBuffer));
+        ClientPlayNetworking.registerGlobalReceiver(SendExposuresPartS2CP.ID, new ClientHandler(SendExposuresPartS2CP::fromBuffer));
     }
 
     public static void sendToServer(IPacket packet) {
