@@ -42,8 +42,11 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class CatalogueScreen extends Screen {
@@ -59,6 +62,14 @@ public class CatalogueScreen extends Screen {
 
     public enum Mode {
         EXPOSURES, TEXTURES;
+    }
+
+    public enum Order {
+        ASCENDING, DESCENDING;
+    }
+
+    public enum Sorting {
+        ALPHABETICAL, DATE;
     }
 
     public static final ResourceLocation TEXTURE = ExposureCatalogue.resource("textures/gui/catalogue.png");
@@ -83,11 +94,17 @@ public class CatalogueScreen extends Screen {
     protected Button texturesModeButton;
     protected Rect2i scrollThumb = new Rect2i(0, 0, 0, 0);
     protected List<Thumbnail> thumbnails = Collections.synchronizedList(new ArrayList<>());
+    protected Button orderAscendingButton;
+    protected Button orderDescendingButton;
+    protected Button sortAZButton;
+    protected Button sortDateButton;
     protected Button refreshButton;
     protected Button exportButton;
     protected Button deleteButton;
 
     protected Mode mode = Mode.EXPOSURES;
+    protected Order order = Order.ASCENDING;
+    protected Sorting sorting = Sorting.DATE;
 
     protected ExposureSize exportSize = ExposureSize.X1;
     protected ExposureLook exportLook = ExposureLook.REGULAR;
@@ -121,6 +138,7 @@ public class CatalogueScreen extends Screen {
         }
 
         exposureIds = new ArrayList<>(exposures.keySet());
+        orderAndSortExposuresList(this.order, this.sorting);
 
         if (mode == Mode.EXPOSURES) {
             this.topRowIndex = 0;
@@ -157,6 +175,26 @@ public class CatalogueScreen extends Screen {
         scrollBarArea = new Rect2i(leftPos + 343, topPos + 22, 10, 221);
         searchBarArea = new Rect2i(leftPos + 219, topPos + 7, 118, 10);
         thumbnailsArea = new Rect2i(leftPos + 8, topPos + 22, 329, 221);
+
+        orderAscendingButton = new ImageButton(leftPos + 188, topPos + 6, 12, 12, 425, 0,
+                12, TEXTURE, 512, 512, b -> changeOrder(Order.ASCENDING));
+        orderAscendingButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.order.ascending")));
+        addRenderableWidget(orderAscendingButton);
+
+        orderDescendingButton = new ImageButton(leftPos + 188, topPos + 6, 12, 12, 425, 36,
+                12, TEXTURE, 512, 512, b -> changeOrder(Order.DESCENDING));
+        orderDescendingButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.order.descending")));
+        addRenderableWidget(orderDescendingButton);
+
+        sortAZButton = new ImageButton(leftPos + 203, topPos + 6, 12, 12, 437, 0,
+                12, TEXTURE, 512, 512, b -> changeSorting(Sorting.ALPHABETICAL));
+        sortAZButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.sort.alphabetical")));
+        addRenderableWidget(sortAZButton);
+
+        sortDateButton = new ImageButton(leftPos + 203, topPos + 6, 12, 12, 437, 36,
+                12, TEXTURE, 512, 512, b -> changeSorting(Sorting.DATE));
+        sortDateButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.sort.date")));
+        addRenderableWidget(sortDateButton);
 
         searchBox = new EditBox(font, searchBarArea.getX() + 1, searchBarArea.getY() + 1, searchBarArea.getWidth(), font.lineHeight, Component.translatable("itemGroup.search"));
         searchBox.setMaxLength(50);
@@ -259,8 +297,7 @@ public class CatalogueScreen extends Screen {
                 .append(Component.translatable("gui.exposure_catalogue.catalogue.delete.tooltip"))));
         addRenderableWidget(deleteButton);
 
-        onSelectionChanged();
-        updateScrollThumb();
+        updateElements();
     }
 
     protected Component createExportButtonTooltip() {
@@ -304,9 +341,10 @@ public class CatalogueScreen extends Screen {
             Packets.sendToServer(new QueryAllExposuresC2SP());
         } else if (mode == Mode.TEXTURES) {
             Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
-            textures = resources.keySet().stream().map(ResourceLocation::toString).toList();
-            selectedIndexes.clear();
-            onSelectionChanged();
+            textures = resources.keySet().stream().map(ResourceLocation::toString).collect(Collectors.toCollection(ArrayList::new));
+            orderTexturesList(this.order);
+            refreshSearchResults();
+            updateElements();
         }
     }
 
@@ -367,10 +405,17 @@ public class CatalogueScreen extends Screen {
         }
 
         selectedIndexes.clear();
-        onSelectionChanged();
+        updateElements();
     }
 
     protected void updateButtons() {
+        orderAscendingButton.visible = order == Order.DESCENDING;
+        orderDescendingButton.visible = order == Order.ASCENDING;
+
+        sortAZButton.visible = sorting == Sorting.DATE || mode == Mode.TEXTURES;
+        sortAZButton.active = mode != Mode.TEXTURES;
+        sortDateButton.visible = sorting == Sorting.ALPHABETICAL && mode == Mode.EXPOSURES;
+
         exposuresModeButton.visible = mode == Mode.TEXTURES;
         texturesModeButton.visible = mode == Mode.EXPOSURES;
 
@@ -388,6 +433,64 @@ public class CatalogueScreen extends Screen {
 
         updateButtons();
         refreshSearchResults();
+    }
+
+    protected void changeOrder(Order order) {
+        this.order = order;
+
+        if (mode == Mode.EXPOSURES) {
+            orderAndSortExposuresList(this.order, this.sorting);
+        }
+        else {
+            orderTexturesList(this.order);
+        }
+
+        updateButtons();
+        refreshSearchResults();
+    }
+
+    protected void changeSorting(Sorting sorting) {
+        this.sorting = sorting;
+
+        if (mode == Mode.EXPOSURES) {
+            orderAndSortExposuresList(this.order, this.sorting);
+        }
+
+        updateButtons();
+        refreshSearchResults();
+    }
+
+    protected void orderAndSortExposuresList(Order order, Sorting sorting) {
+        exposureIds = new ArrayList<>(exposures.keySet());
+
+//        if (sorting == Sorting.ALPHABETICAL) {
+//            return;
+//        }
+
+        exposureIds.sort(Comparator.naturalOrder());
+
+        if (sorting == Sorting.DATE) {
+            Comparator<String> comparator = new Comparator<String>() {
+                @Override
+                public int compare(String s1, String s2) {
+                    return Long.compare(getTimestamp(s1), getTimestamp(s2));
+                }
+
+                private long getTimestamp(String exposureId) {
+                    @Nullable CompoundTag tag = exposures.get(exposureId);
+                    return tag != null ? tag.getLong(ExposureSavedData.TIMESTAMP_PROPERTY) : 0L;
+                }
+            };
+
+            exposureIds.sort(comparator);
+        }
+
+        if (order == Order.DESCENDING)
+            Collections.reverse(exposureIds);
+    }
+
+    protected void orderTexturesList(Order order) {
+        textures.sort(order == Order.ASCENDING ? Comparator.naturalOrder() : Comparator.reverseOrder());
     }
 
     @Override
@@ -421,7 +524,7 @@ public class CatalogueScreen extends Screen {
         scroll(Integer.MIN_VALUE);
     }
 
-    public void refreshThumbnailsGrid() {
+    public void updateThumbnailsGrid() {
         thumbnails.clear();
 
         for (int row = 0; row < ROWS; row++) {
@@ -502,6 +605,15 @@ public class CatalogueScreen extends Screen {
                 thumbnail.idOrTexture().ifLeft(exposureId -> {
                     ExposureClient.getExposureStorage().getOrQuery(exposureId).ifPresent(data -> {
                         CompoundTag properties = data.getProperties();
+
+                        long timestampSeconds = properties.getLong(ExposureSavedData.TIMESTAMP_PROPERTY);
+                        if (timestampSeconds > 0) {
+                            Date date = new Date(timestampSeconds * 1000L);
+                            String pattern = "yyyy-MM-dd HH:mm:ss";
+                            SimpleDateFormat format = new SimpleDateFormat(pattern);
+                            String format1 = format.format((date));
+                            lines.add(Component.literal(format1).withStyle(ChatFormatting.GRAY));
+                        }
 
                         lines.add(Component.literal(data.getWidth() + "x" + data.getHeight()).withStyle(ChatFormatting.GRAY));
 
@@ -621,7 +733,7 @@ public class CatalogueScreen extends Screen {
                         selectionStartIndex = thumbnail.index();
                     }
                 }
-                onSelectionChanged();
+                updateElements();
             } else {
                 openPhotographView(thumbnail.index());
             }
@@ -721,12 +833,12 @@ public class CatalogueScreen extends Screen {
             if (keyCode == InputConstants.KEY_A) {
                 selectedIndexes.clear();
                 selectedIndexes.addAll(IntStream.range(0, filteredItems.size()).boxed().toList());
-                onSelectionChanged();
+                updateElements();
                 return true;
             }
             if (keyCode == InputConstants.KEY_D) {
                 selectedIndexes.clear();
-                onSelectionChanged();
+                updateElements();
                 return true;
             }
         }
@@ -734,9 +846,10 @@ public class CatalogueScreen extends Screen {
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    private void onSelectionChanged() {
+    protected void updateElements() {
+        updateScrollThumb();
         updateButtons();
-        refreshThumbnailsGrid();
+        updateThumbnailsGrid();
     }
 
     @Override
@@ -766,7 +879,7 @@ public class CatalogueScreen extends Screen {
         int maxRowWhenAtEnd = Math.max(0, (int) Math.ceil((filteredItems.size() - ROWS * COLS) / (float) COLS));
         topRowIndex = Mth.clamp(row, 0, maxRowWhenAtEnd);
         updateScrollThumb();
-        refreshThumbnailsGrid();
+        updateThumbnailsGrid();
     }
 
     protected void updateScrollThumb() {
