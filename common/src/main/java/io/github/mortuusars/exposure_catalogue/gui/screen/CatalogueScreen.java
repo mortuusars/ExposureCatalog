@@ -144,24 +144,6 @@ public class CatalogueScreen extends Screen {
             this.topRowIndex = 0;
             refreshSearchResults();
         }
-
-//        exposuresMetadataList.sort(new Comparator<String>() {
-//            public int compare(String o1, String o2) {
-//                return extractTick(o1) - extractTick(o2);
-//            }
-//
-//            int extractTick(String s) {
-//                s = s.replace("_chromatic", "");
-//                int first = s.indexOf('_');
-//
-//                String secondPart = first == -1 ? s : s.substring(first + 1);
-//                int next = secondPart.indexOf('_');
-//                int endIndex = next != -1 ? next : secondPart.length() - 1;
-//                String num = secondPart.substring(0, endIndex).replaceAll("\\D", "");
-//                // return 0 if no digits found
-//                return num.isEmpty() ? 0 : Integer.parseInt(num);
-//            }
-//        });
     }
 
     @Override
@@ -205,12 +187,12 @@ public class CatalogueScreen extends Screen {
 
         exposuresModeButton = new ImageButton(leftPos + 342, topPos + 6, 12, 12, 449, 0,
                 12, TEXTURE, 512, 512, b -> changeMode(Mode.EXPOSURES));
-        exposuresModeButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.exposures_mode")));
+        exposuresModeButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.mode.exposures")));
         addRenderableWidget(exposuresModeButton);
 
         texturesModeButton = new ImageButton(leftPos + 342, topPos + 6, 12, 12, 461, 0,
                 12, TEXTURE, 512, 512, b -> changeMode(Mode.TEXTURES));
-        texturesModeButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.textures_mode")));
+        texturesModeButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalogue.catalogue.mode.textures")));
         addRenderableWidget(texturesModeButton);
 
         refreshButton = new ImageButton(leftPos + 7, topPos + 247, 12, 12, 449, 36,
@@ -234,15 +216,13 @@ public class CatalogueScreen extends Screen {
 
                 if (Screen.hasControlDown()) {
                     exportSize = ExposureSize.values()[(exportSize.ordinal() + 1) % ExposureSize.values().length];
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
-                            Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
+                    playClickSound();
                     return true;
                 }
 
                 if (Screen.hasShiftDown()) {
                     exportLook = ExposureLook.values()[(exportLook.ordinal() + 1) % ExposureLook.values().length];
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
-                            Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
+                    playClickSound();
                     return true;
                 }
 
@@ -262,8 +242,7 @@ public class CatalogueScreen extends Screen {
                         newValue = 0;
 
                     if (exportSize != ExposureSize.values()[newValue]) {
-                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
-                                Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
+                        playClickSound();
                         exportSize = ExposureSize.values()[newValue];
                     }
                     return true;
@@ -277,8 +256,7 @@ public class CatalogueScreen extends Screen {
                         newValue = 0;
 
                     if (exportLook != ExposureLook.values()[newValue]) {
-                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
-                                Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
+                        playClickSound();
                         exportLook = ExposureLook.values()[newValue];
                     }
                     return true;
@@ -298,6 +276,11 @@ public class CatalogueScreen extends Screen {
         addRenderableWidget(deleteButton);
 
         updateElements();
+    }
+
+    private static void playClickSound() {
+        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
+                Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
     }
 
     protected Component createExportButtonTooltip() {
@@ -470,7 +453,7 @@ public class CatalogueScreen extends Screen {
         exposureIds.sort(Comparator.naturalOrder());
 
         if (sorting == Sorting.DATE) {
-            Comparator<String> comparator = new Comparator<String>() {
+            Comparator<String> comparator = new Comparator<>() {
                 @Override
                 public int compare(String s1, String s2) {
                     return Long.compare(getTimestamp(s1), getTimestamp(s2));
@@ -595,6 +578,11 @@ public class CatalogueScreen extends Screen {
     }
 
     protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        if (searchBox.isMouseOver(mouseX, mouseY)) {
+            guiGraphics.renderTooltip(font, Component.translatable("gui.exposure_catalogue.searchbar.tooltip"), mouseX, mouseY);
+            return;
+        }
+
         for (Thumbnail thumbnail : thumbnails) {
             if (thumbnail.isMouseOver(mouseX, mouseY)) {
                 String idOrTextureStr = thumbnail.idOrTexture().map(s -> s, ResourceLocation::toString);
@@ -621,6 +609,11 @@ public class CatalogueScreen extends Screen {
                             lines.add(Component.literal("Printed").withStyle(ChatFormatting.GRAY));
                     });
                 });
+
+                lines.add(Component.empty());
+                lines.add(Component.translatable("gui.exposure_catalogue.thumbnail.tooltip.view"));
+                lines.add(Component.translatable("gui.exposure_catalogue.thumbnail.tooltip.selection"));
+                lines.add(Component.translatable("gui.exposure_catalogue.thumbnail.tooltip.selection.shift"));
 
                 guiGraphics.renderTooltip(font, lines, Optional.empty(), mouseX, mouseY);
 
@@ -815,11 +808,6 @@ public class CatalogueScreen extends Screen {
             return true;
         }
 
-        if (Minecraft.getInstance().options.keyInventory.matches(keyCode, scanCode)) {
-            this.onClose();
-            return true;
-        }
-
         if (keyCode == InputConstants.KEY_DELETE) {
             deleteExposures();
             return true;
@@ -830,17 +818,39 @@ public class CatalogueScreen extends Screen {
                 setFocused(searchBox);
                 return true;
             }
+            if (keyCode == InputConstants.KEY_M) {
+                changeMode(Mode.values()[(mode.ordinal() + 1) % Mode.values().length]);
+                playClickSound();
+                return true;
+            }
+            if (keyCode == InputConstants.KEY_R) {
+                refresh();
+                playClickSound();
+                return true;
+            }
+            if (keyCode == InputConstants.KEY_E) {
+                exportExposures();
+                playClickSound();
+                return true;
+            }
             if (keyCode == InputConstants.KEY_A) {
                 selectedIndexes.clear();
                 selectedIndexes.addAll(IntStream.range(0, filteredItems.size()).boxed().toList());
                 updateElements();
+                playClickSound();
                 return true;
             }
             if (keyCode == InputConstants.KEY_D) {
                 selectedIndexes.clear();
                 updateElements();
+                playClickSound();
                 return true;
             }
+        }
+
+        if (Minecraft.getInstance().options.keyInventory.matches(keyCode, scanCode)) {
+            this.onClose();
+            return true;
         }
 
         return super.keyPressed(keyCode, scanCode, modifiers);
@@ -912,7 +922,8 @@ public class CatalogueScreen extends Screen {
 
         PhotographScreen screen = new AlbumPhotographScreen(this, photographs);
         Minecraft.getInstance().setScreen(screen);
-        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(Exposure.SoundEvents.PHOTOGRAPH_RUSTLE.get(),
+        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
+                Exposure.SoundEvents.PHOTOGRAPH_RUSTLE.get(),
                 Objects.requireNonNull(Minecraft.getInstance().player).level().getRandom().nextFloat() * 0.2f + 1.3f, 0.75f));
     }
 }

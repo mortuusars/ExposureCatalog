@@ -1,5 +1,6 @@
 package io.github.mortuusars.exposure_catalogue.gui.screen;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.github.mortuusars.exposure_catalogue.ExposureCatalogue;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -25,6 +26,8 @@ public class ConfirmScreen extends Screen {
     protected int imageHeight;
     protected int leftPos;
     protected int topPos;
+    private Button yesButton;
+    private Button noButton;
 
     public ConfirmScreen(Screen parent, Component message, Component yesButtonMsg, Button.OnPress onYesButtonPress,
                          Component noButtonMsg, Button.OnPress onNoButtonPress) {
@@ -44,19 +47,21 @@ public class ConfirmScreen extends Screen {
         this.leftPos = width / 2 - imageWidth / 2;
         this.topPos = height / 2 - imageHeight / 2;
 
-        addRenderableWidget(Button.builder(yesButtonMsg, button -> {
+        yesButton = Button.builder(yesButtonMsg, button -> {
                     onClose();
                     onYesButtonPress.onPress(button);
                 })
                 .bounds(leftPos + 9, topPos + 60, 108, 19)
-                .build());
+                .build();
+        addRenderableWidget(yesButton);
 
-        addRenderableWidget(Button.builder(noButtonMsg, button -> {
+        noButton = Button.builder(noButtonMsg, button -> {
                     onClose();
                     onNoButtonPress.onPress(button);
                 })
                 .bounds(leftPos + 123, topPos + 60, 108, 19)
-                .build());
+                .build();
+        addRenderableWidget(noButton);
     }
 
     @Override
@@ -80,5 +85,15 @@ public class ConfirmScreen extends Screen {
     @Override
     public void onClose() {
         Minecraft.getInstance().setScreen(parent);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (getFocused() == null && keyCode == InputConstants.KEY_RETURN) {
+            yesButton.onPress();
+            return true;
+        }
+
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 }
