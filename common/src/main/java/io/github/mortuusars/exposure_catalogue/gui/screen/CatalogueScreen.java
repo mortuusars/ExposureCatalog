@@ -1,5 +1,6 @@
 package io.github.mortuusars.exposure_catalogue.gui.screen;
 
+import com.google.common.collect.Lists;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.Tesselator;
@@ -16,6 +17,7 @@ import io.github.mortuusars.exposure.item.PhotographItem;
 import io.github.mortuusars.exposure.render.modifiers.ExposurePixelModifiers;
 import io.github.mortuusars.exposure.util.ItemAndStack;
 import io.github.mortuusars.exposure_catalogue.ExposureCatalogue;
+import io.github.mortuusars.exposure_catalogue.gui.screen.tooltip.BelowOrAboveAreaTooltipPositioner;
 import io.github.mortuusars.exposure_catalogue.network.Packets;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalogue.network.packet.server.ExportExposureC2SP;
@@ -28,6 +30,8 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
+import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -118,6 +122,9 @@ public class CatalogueScreen extends Screen {
 
     protected int totalRows = 0;
     protected int topRowIndex = 0;
+
+    protected boolean isThumbnailsGridFocused;
+    protected int focusedThumbnailIndex;
 
     protected boolean isDraggingScrollbar = false;
     protected int topRowIndexAtDragStart = 0;
@@ -337,8 +344,7 @@ public class CatalogueScreen extends Screen {
                 String exposureId = filteredItems.get(index);
                 Packets.sendToServer(new ExportExposureC2SP(exposureId, exportSize, exportLook));
             }
-        }
-        else {
+        } else {
             for (String exposureId : filteredItems) {
                 Packets.sendToServer(new ExportExposureC2SP(exposureId, exportSize, exportLook));
             }
@@ -423,8 +429,7 @@ public class CatalogueScreen extends Screen {
 
         if (mode == Mode.EXPOSURES) {
             orderAndSortExposuresList(this.order, this.sorting);
-        }
-        else {
+        } else {
             orderTexturesList(this.order);
         }
 
@@ -585,41 +590,56 @@ public class CatalogueScreen extends Screen {
 
         for (Thumbnail thumbnail : thumbnails) {
             if (thumbnail.isMouseOver(mouseX, mouseY)) {
-                String idOrTextureStr = thumbnail.idOrTexture().map(s -> s, ResourceLocation::toString);
-
-                List<Component> lines = new ArrayList<>();
-                lines.add(Component.literal(idOrTextureStr));
-
-                thumbnail.idOrTexture().ifLeft(exposureId -> {
-                    ExposureClient.getExposureStorage().getOrQuery(exposureId).ifPresent(data -> {
-                        CompoundTag properties = data.getProperties();
-
-                        long timestampSeconds = properties.getLong(ExposureSavedData.TIMESTAMP_PROPERTY);
-                        if (timestampSeconds > 0) {
-                            Date date = new Date(timestampSeconds * 1000L);
-                            String pattern = "yyyy-MM-dd HH:mm:ss";
-                            SimpleDateFormat format = new SimpleDateFormat(pattern);
-                            String format1 = format.format((date));
-                            lines.add(Component.literal(format1).withStyle(ChatFormatting.GRAY));
-                        }
-
-                        lines.add(Component.literal(data.getWidth() + "x" + data.getHeight()).withStyle(ChatFormatting.GRAY));
-
-                        if (properties.getBoolean(ExposureSavedData.WAS_PRINTED_PROPERTY))
-                            lines.add(Component.literal("Printed").withStyle(ChatFormatting.GRAY));
-                    });
-                });
-
-                lines.add(Component.empty());
-                lines.add(Component.translatable("gui.exposure_catalogue.thumbnail.tooltip.view"));
-                lines.add(Component.translatable("gui.exposure_catalogue.thumbnail.tooltip.selection"));
-                lines.add(Component.translatable("gui.exposure_catalogue.thumbnail.tooltip.selection.shift"));
-
+                List<Component> lines = getThumbnailTooltipLines(thumbnail);
                 guiGraphics.renderTooltip(font, lines, Optional.empty(), mouseX, mouseY);
-
+                break;
+            }
+            if (isThumbnailsGridFocused && thumbnail.gridIndex() == focusedThumbnailIndex) {
+                List<Component> lines = getThumbnailTooltipLines(thumbnail);
+                guiGraphics.renderTooltip(font, Lists.transform(lines, Component::getVisualOrderText),
+                        new BelowOrAboveAreaTooltipPositioner(thumbnail.area()), mouseX, mouseY);
                 break;
             }
         }
+    }
+
+    @NotNull
+    private static List<Component> getThumbnailTooltipLines(Thumbnail thumbnail) {
+        String idOrTextureStr = thumbnail.idOrTexture().map(s -> s, ResourceLocation::toString);
+
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.literal(idOrTextureStr));
+
+        thumbnail.idOrTexture().ifLeft(exposureId -> {
+            ExposureClient.getExposureStorage().getOrQuery(exposureId).ifPresent(data -> {
+                CompoundTag properties = data.getProperties();
+
+                long timestampSeconds = properties.getLong(ExposureSavedData.TIMESTAMP_PROPERTY);
+                if (timestampSeconds > 0) {
+                    Date date = new Date(timestampSeconds * 1000L);
+                    String pattern = "yyyy-MM-dd HH:mm:ss";
+                    SimpleDateFormat format = new SimpleDateFormat(pattern);
+                    String format1 = format.format((date));
+                    lines.add(Component.literal(format1).withStyle(ChatFormatting.GRAY));
+                }
+
+                lines.add(Component.literal(data.getWidth() + "x" + data.getHeight()).withStyle(ChatFormatting.GRAY));
+
+                if (properties.getBoolean(ExposureSavedData.WAS_PRINTED_PROPERTY))
+                    lines.add(Component.literal("Printed").withStyle(ChatFormatting.GRAY));
+            });
+        });
+
+        lines.add(Component.empty());
+        if (Screen.hasShiftDown()) {
+            lines.add(Component.translatable("gui.exposure_catalogue.thumbnail.tooltip.view"));
+            lines.add(Component.translatable("gui.exposure_catalogue.thumbnail.tooltip.selection"));
+            lines.add(Component.translatable("gui.exposure_catalogue.thumbnail.tooltip.selection.shift"));
+        }
+        else {
+            lines.add(Component.translatable("gui.exposure_catalogue.thumbnail.tooltip.control_info"));
+        }
+        return lines;
     }
 
     protected boolean isMouseOver(Rect2i rect, double mouseX, double mouseY) {
@@ -688,6 +708,11 @@ public class CatalogueScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (getFocused() == searchBox && !searchBox.isMouseOver(mouseX, mouseY))
             setFocused(null);
+
+        if (isThumbnailsGridFocused) {
+            setFocused(null);
+            isThumbnailsGridFocused = false;
+        }
 
         if (button == InputConstants.MOUSE_BUTTON_RIGHT && searchBox.isMouseOver(mouseX, mouseY)) {
             String value = searchBox.getValue();
@@ -783,9 +808,28 @@ public class CatalogueScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (searchBox.isFocused() && (keyCode == InputConstants.KEY_ESCAPE)) {
+        if (keyCode == InputConstants.KEY_ESCAPE && (searchBox.isFocused() || isThumbnailsGridFocused)) {
             setFocused(null);
+            isThumbnailsGridFocused = false;
             return true;
+        }
+
+        if (isThumbnailsGridFocused) {
+            if (keyCode == InputConstants.KEY_RETURN) {
+                if (Screen.hasControlDown()) {
+                    if (selectedIndexes.contains(focusedThumbnailIndex))
+                        selectedIndexes.remove(Integer.valueOf(focusedThumbnailIndex));
+                    else {
+                        selectedIndexes.add(focusedThumbnailIndex);
+                        selectionStartIndex = focusedThumbnailIndex;
+                    }
+                    updateElements();
+                }
+                else {
+                    openPhotographView(thumbnails.get(focusedThumbnailIndex).index());
+                }
+                return true;
+            }
         }
 
         if (searchBox.canConsumeInput() && keyCode != InputConstants.KEY_TAB) {
@@ -797,6 +841,88 @@ public class CatalogueScreen extends Screen {
                 return true;
             } else if (keyCode != InputConstants.KEY_ESCAPE)
                 return true;
+        }
+
+        if (keyCode == InputConstants.KEY_TAB) {
+            if (!filteredItems.isEmpty() && !Screen.hasShiftDown() && (getFocused() == exposuresModeButton || getFocused() == texturesModeButton)) {
+                setFocused(null);
+                isThumbnailsGridFocused = true;
+                focusedThumbnailIndex = 0;
+
+                selectedIndexes.clear();
+                selectedIndexes.add(focusedThumbnailIndex + (topRowIndex * COLS));
+                updateElements();
+
+                return true;
+            }
+            else if (!filteredItems.isEmpty() && Screen.hasShiftDown() && getFocused() == refreshButton && !isThumbnailsGridFocused) {
+                setFocused(null);
+                isThumbnailsGridFocused = true;
+                focusedThumbnailIndex = 0;
+
+                selectedIndexes.clear();
+                selectedIndexes.add(focusedThumbnailIndex + (topRowIndex * COLS));
+                updateElements();
+
+                return true;
+            }
+            else if (isThumbnailsGridFocused) {
+                Button newFocusTarget = Screen.hasShiftDown() ?
+                        mode == Mode.EXPOSURES ? texturesModeButton : exposuresModeButton
+                        : refreshButton;
+                setFocused(newFocusTarget);
+                isThumbnailsGridFocused = false;
+
+                if (selectedIndexes.size() == 1 && selectedIndexes.get(0) == focusedThumbnailIndex + (topRowIndex * COLS)) {
+                    selectedIndexes.clear();
+                    updateElements();
+                }
+
+                return true;
+            }
+        }
+
+        if (isThumbnailsGridFocused && !filteredItems.isEmpty() && List.of(InputConstants.KEY_LEFT, InputConstants.KEY_RIGHT,
+                InputConstants.KEY_UP, InputConstants.KEY_DOWN).contains(keyCode)) {
+            if (keyCode == InputConstants.KEY_LEFT) {
+                int newIndex = focusedThumbnailIndex - 1;
+                if (newIndex < 0 && topRowIndex > 0) {
+                    scroll(-1);
+                    focusedThumbnailIndex = COLS - 1;
+                }
+                else
+                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+            } else if (keyCode == InputConstants.KEY_RIGHT) {
+                int newIndex = focusedThumbnailIndex + 1;
+                if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
+                    scroll(1);
+                    focusedThumbnailIndex = ROWS * COLS - COLS;
+                }
+                else
+                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+            }
+            else if (keyCode == InputConstants.KEY_UP) {
+                int newIndex = focusedThumbnailIndex - COLS;
+                if (newIndex < 0 && topRowIndex > 0) {
+                    scroll(-1);
+                }
+                else
+                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+            }
+            else if (keyCode == InputConstants.KEY_DOWN) {
+                int newIndex = focusedThumbnailIndex + COLS;
+                if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
+                    scroll(1);
+                }
+                else
+                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+            }
+
+            selectedIndexes.clear();
+            selectedIndexes.add(focusedThumbnailIndex + (topRowIndex * COLS));
+            updateElements();
+
+            return true;
         }
 
         if (keyCode == InputConstants.KEY_HOME) {
