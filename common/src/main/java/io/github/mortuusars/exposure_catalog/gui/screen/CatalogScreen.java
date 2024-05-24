@@ -26,6 +26,7 @@ import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposur
 import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposureC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.QueryAllExposuresC2SP;
 import net.minecraft.ChatFormatting;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -60,6 +61,7 @@ import java.util.stream.IntStream;
 
 public class CatalogScreen extends Screen {
     public static final int TEX_SIZE = 512;
+    public static final int REFRESH_COOLDOWN_MS = 1000; // 1 second
 
     public record Thumbnail(int index, int gridIndex, Either<String, ResourceLocation> idOrTexture, Rect2i area,
                             boolean selected) {
@@ -183,6 +185,8 @@ public class CatalogScreen extends Screen {
     protected double dragDelta = 0;
 
     protected boolean initialized;
+
+    protected long refreshedAt = 0;
 
     public CatalogScreen() {
         super(Component.translatable("gui.exposure_catalog.catalog"));
@@ -384,7 +388,14 @@ public class CatalogScreen extends Screen {
         return tooltip;
     }
 
+    protected boolean canRefresh() {
+        return Util.getMillis() - refreshedAt >= REFRESH_COOLDOWN_MS;
+    }
+
     protected void refresh() {
+        if (!canRefresh())
+            return;
+
         if (mode == Mode.EXPOSURES) {
             Packets.sendToServer(new QueryAllExposuresC2SP());
         } else if (mode == Mode.TEXTURES) {
@@ -394,6 +405,8 @@ public class CatalogScreen extends Screen {
             refreshSearchResults();
             updateElements();
         }
+
+        refreshedAt = Util.getMillis();
     }
 
     protected void exportExposures() {
@@ -468,6 +481,8 @@ public class CatalogScreen extends Screen {
 
         exportButton.active = mode == Mode.EXPOSURES;
         deleteButton.active = mode == Mode.EXPOSURES && !selectedIndexes.isEmpty();
+
+        refreshButton.active = canRefresh();
     }
 
     protected void changeMode(Mode mode) {
@@ -603,6 +618,8 @@ public class CatalogScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        refreshButton.active = canRefresh();
+
         renderBackground(guiGraphics);
 
         // Main texture
@@ -1004,8 +1021,10 @@ public class CatalogScreen extends Screen {
                 return true;
             }
             if (keyCode == InputConstants.KEY_R) {
-                refresh();
-                playClickSound();
+                if (canRefresh()) {
+                    refresh();
+                    playClickSound();
+                }
                 return true;
             }
             if (keyCode == InputConstants.KEY_E) {
@@ -1021,9 +1040,11 @@ public class CatalogScreen extends Screen {
                 return true;
             }
             if (keyCode == InputConstants.KEY_D) {
-                selectedIndexes.clear();
-                updateElements();
-                playClickSound();
+                if (!selectedIndexes.isEmpty()) {
+                    selectedIndexes.clear();
+                    updateElements();
+                    playClickSound();
+                }
                 return true;
             }
         }

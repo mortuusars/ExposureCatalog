@@ -18,8 +18,8 @@ public class ExposureCatalogForge {
     public ExposureCatalogForge() {
         ExposureCatalog.init();
 
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.Common.SPEC);
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.Client.SPEC);
+//        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.Common.SPEC);
+//        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.Client.SPEC);
 
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
