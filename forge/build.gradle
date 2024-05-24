@@ -14,8 +14,8 @@ loom {
         convertAccessWideners = true
         extraAccessWideners.add loom.accessWidenerPath.get().asFile.name
 
-        mixinConfig "exposure_catalogue-common.mixins.json"
-        mixinConfig "exposure_catalogue.mixins.json"
+        mixinConfig "exposure_catalog-common.mixins.json"
+        mixinConfig "exposure_catalog.mixins.json"
     }
 
     runs {
@@ -62,27 +62,27 @@ repositories {
 
 dependencies {
     forge "net.minecraftforge:forge:${forge_version}"
-    // ExposureCatalogue does not depend on Architectury API:
+    // ExposureCatalog does not depend on Architectury API:
     // modApi "dev.architectury:architectury-forge:${rootProject.architectury_version}"
 
     modImplementation("curse.maven:exposure-871755:${exposure_forge_id}")
 
-    modCompileOnlyApi("mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}")
+//    modCompileOnlyApi("mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}")
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-forge:${jei_version}") { transitive = false }
 
 //    modRuntimeOnly("dev.emi:emi-forge:${emi_version}")
 
-    modCompileOnlyApi("dev.latvian.mods:kubejs-forge:${kubejs_version}")
+//    modCompileOnlyApi("dev.latvian.mods:kubejs-forge:${kubejs_version}")
     // Not working in dev env:
     // modRuntimeOnly("dev.latvian.mods:kubejs-forge:${kubejs_version}")
     // modRuntimeOnly("curse.maven:probejs-585406:${probejs_forge_id}")
 
-    modCompileOnlyApi("curse.maven:jade-324717:${jade_forge_id}")
-    modRuntimeOnly("curse.maven:jade-324717:${jade_forge_id}") { transitive = false }
+//    modCompileOnlyApi("curse.maven:jade-324717:${jade_forge_id}")
+//    modRuntimeOnly("curse.maven:jade-324717:${jade_forge_id}") { transitive = false }
 
-    modCompileOnly("com.simibubi.create:create-${create_forge_version}") { transitive = false }
-    modCompileOnly("com.jozufozu.flywheel:flywheel-forge-${flywheel_forge_version}")
-    modCompileOnly("com.tterrag.registrate:Registrate:${registrate_forge_version}")
+//    modCompileOnly("com.simibubi.create:create-${create_forge_version}") { transitive = false }
+//    modCompileOnly("com.jozufozu.flywheel:flywheel-forge-${flywheel_forge_version}")
+//    modCompileOnly("com.tterrag.registrate:Registrate:${registrate_forge_version}")
 
 //    modRuntimeOnly("com.simibubi.create:create-${create_forge_version}") { transitive = false }
 //    modRuntimeOnly("com.jozufozu.flywheel:flywheel-forge-${flywheel_forge_version}")

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "exposure_catalogue",
+  "id": "exposure_catalog",
   "version": "${mod_version}",
   "name": "${mod_name}",
   "description": "${mod_description}",
@@ -16,26 +16,19 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "io.github.mortuusars.exposure_catalogue.fabric.ExposureCatalogueFabric"
+      "io.github.mortuusars.exposure_catalog.fabric.ExposureCatalogFabric"
     ],
     "client": [
-      "io.github.mortuusars.exposure_catalogue.fabric.ExposureCatalogueFabricClient"
-    ],
-    "jei_mod_plugin": [
-      "io.github.mortuusars.exposure_catalogue.integration.jei.ExposureCatalogueJeiPlugin"
+      "io.github.mortuusars.exposure_catalog.fabric.ExposureCatalogFabricClient"
     ]
   },
   "mixins": [
-    "exposure_catalogue.mixins.json",
-    "exposure_catalogue-common.mixins.json"
+    "exposure_catalog.mixins.json",
+    "exposure_catalog-common.mixins.json"
   ],
   "depends": {
     "minecraft": "=1.20.1",
     "fabric-api": ">=0.88.1",
-    "fabric": "*",
-    "forgeconfigapiport": ">=8.0.0"
-  },
-  "recommends": {
-    "create": ">=0.5.1-f"
+    "fabric": "*"
   }
 }

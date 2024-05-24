@@ -36,28 +36,28 @@ repositories {
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
     modApi "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
-    // ExposureCatalogue does not depend on the Architectury API:
+    // ExposureCatalog does not depend on the Architectury API:
     // modApi "dev.architectury:architectury-fabric:${rootProject.architectury_version}"
 
     modImplementation("net.fabricmc.fabric-api:fabric-api:${fabric_api_version}")
     modImplementation("curse.maven:exposure-871755:${exposure_fabric_id}")
 
-    modApi "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forge_config_api_version}"
+    modRuntimeOnly "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forge_config_api_version}"
 
-    modCompileOnlyApi("dev.latvian.mods:kubejs-fabric:${kubejs_version}")
-    modRuntimeOnly("dev.latvian.mods:kubejs-fabric:${kubejs_version}")
-    modRuntimeOnly("curse.maven:probejs-585406:${probejs_fabric_id}")
-
-    modCompileOnlyApi("curse.maven:jade-324717:${jade_fabric_id}")
-    modRuntimeOnly("curse.maven:jade-324717:${jade_fabric_id}") { transitive = false }
-
-    modCompileOnlyApi("mezz.jei:jei-${minecraft_version}-fabric-api:${jei_version}")
+//    modCompileOnlyApi("dev.latvian.mods:kubejs-fabric:${kubejs_version}")
+//    modRuntimeOnly("dev.latvian.mods:kubejs-fabric:${kubejs_version}")
+//    modRuntimeOnly("curse.maven:probejs-585406:${probejs_fabric_id}")
+//
+//    modCompileOnlyApi("curse.maven:jade-324717:${jade_fabric_id}")
+//    modRuntimeOnly("curse.maven:jade-324717:${jade_fabric_id}") { transitive = false }
+//
+//    modCompileOnlyApi("mezz.jei:jei-${minecraft_version}-fabric-api:${jei_version}")
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-fabric:${jei_version}")
 
     // modRuntimeOnly("dev.emi:emi-fabric:${emi_version}")
 
     // Create
-    modCompileOnly("com.simibubi.create:create-fabric-${minecraft_version}:${create_fabric_version}")
+//    modCompileOnly("com.simibubi.create:create-fabric-${minecraft_version}:${create_fabric_version}")
     // modRuntimeOnly("com.simibubi.create:create-fabric-${minecraft_version}:${create_fabric_version}")
 
     // C2ME
