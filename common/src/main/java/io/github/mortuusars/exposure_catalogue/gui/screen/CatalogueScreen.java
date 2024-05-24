@@ -1,10 +1,14 @@
 package io.github.mortuusars.exposure_catalogue.gui.screen;
 
 import com.google.common.collect.Lists;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.datafixers.util.Either;
+import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.Exposure;
 import io.github.mortuusars.exposure.ExposureClient;
 import io.github.mortuusars.exposure.camera.infrastructure.FrameData;
@@ -30,8 +34,6 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
-import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -43,11 +45,16 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.util.GsonHelper;
 import net.minecraft.util.Mth;
+import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -64,22 +71,69 @@ public class CatalogueScreen extends Screen {
         }
     }
 
-    public enum Mode {
-        EXPOSURES, TEXTURES;
+    public enum Mode implements StringRepresentable {
+        EXPOSURES("exposures"), TEXTURES("textures");
+        private final String name;
+        Mode(String name) {
+            this.name = name;
+        }
+        @Override
+        public @NotNull String getSerializedName() {
+            return name;
+        }
+        public static Mode fromSerializedString(String str) {
+            for (Mode value : values()) {
+                if (value.getSerializedName().equals(str))
+                    return value;
+            }
+            throw new IllegalArgumentException(str + " cannot be deserialized to Mode");
+        }
     }
 
-    public enum Order {
-        ASCENDING, DESCENDING;
+    public enum Order implements StringRepresentable {
+        ASCENDING("ascending"), DESCENDING("descending");
+        private final String name;
+        Order(String name) {
+            this.name = name;
+        }
+        @Override
+        public @NotNull String getSerializedName() {
+            return name;
+        }
+        public static Order fromSerializedString(String str) {
+            for (Order value : values()) {
+                if (value.getSerializedName().equals(str))
+                    return value;
+            }
+            throw new IllegalArgumentException(str + " cannot be deserialized to Order");
+        }
     }
 
-    public enum Sorting {
-        ALPHABETICAL, DATE;
+    public enum Sorting implements StringRepresentable {
+        ALPHABETICAL("alphabetical"), DATE("date");
+        private final String name;
+        Sorting(String name) {
+            this.name = name;
+        }
+        @Override
+        public @NotNull String getSerializedName() {
+            return name;
+        }
+        public static Sorting fromSerializedString(String str) {
+            for (Sorting value : values()) {
+                if (value.getSerializedName().equals(str))
+                    return value;
+            }
+            throw new IllegalArgumentException(str + " cannot be deserialized to Sorting");
+        }
     }
 
     public static final ResourceLocation TEXTURE = ExposureCatalogue.resource("textures/gui/catalogue.png");
 
     public static final int ROWS = 4;
     public static final int COLS = 6;
+
+    protected final File stateFile = new File(Minecraft.getInstance().gameDirectory, "exposure_catalog_state.json");
 
     protected int imageWidth;
     protected int imageHeight;
@@ -130,10 +184,11 @@ public class CatalogueScreen extends Screen {
     protected int topRowIndexAtDragStart = 0;
     protected double dragDelta = 0;
 
+    protected boolean initialized;
+
     public CatalogueScreen() {
         super(Component.translatable("gui.exposure_catalogue.catalogue"));
-
-        refresh();
+        loadState();
     }
 
     public void setExposures(@NotNull List<CompoundTag> exposuresMetadataList) {
@@ -281,6 +336,11 @@ public class CatalogueScreen extends Screen {
                 .append("\n")
                 .append(Component.translatable("gui.exposure_catalogue.catalogue.delete.tooltip"))));
         addRenderableWidget(deleteButton);
+
+        if (!initialized) {
+            refresh();
+            initialized = true;
+        }
 
         updateElements();
     }
@@ -451,10 +511,6 @@ public class CatalogueScreen extends Screen {
     protected void orderAndSortExposuresList(Order order, Sorting sorting) {
         exposureIds = new ArrayList<>(exposures.keySet());
 
-//        if (sorting == Sorting.ALPHABETICAL) {
-//            return;
-//        }
-
         exposureIds.sort(Comparator.naturalOrder());
 
         if (sorting == Sorting.DATE) {
@@ -498,7 +554,7 @@ public class CatalogueScreen extends Screen {
 
         List<String> items = mode == Mode.EXPOSURES ? exposureIds : textures;
 
-        String filter = searchBox.getValue();
+        String filter = searchBox != null ? searchBox.getValue() : "";
         if (filter.isEmpty()) {
             filteredItems.addAll(items);
         } else {
@@ -1051,5 +1107,49 @@ public class CatalogueScreen extends Screen {
         Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
                 Exposure.SoundEvents.PHOTOGRAPH_RUSTLE.get(),
                 Objects.requireNonNull(Minecraft.getInstance().player).level().getRandom().nextFloat() * 0.2f + 1.3f, 0.75f));
+    }
+
+    @Override
+    public void onClose() {
+        saveState();
+        super.onClose();
+    }
+
+    protected void saveState() {
+        JsonObject obj = new JsonObject();
+        obj.addProperty("mode", mode.getSerializedName());
+        obj.addProperty("order", order.getSerializedName());
+        obj.addProperty("sorting", sorting.getSerializedName());
+        obj.addProperty("export_size", exportSize.getSerializedName());
+        obj.addProperty("export_look", exportLook.getSerializedName());
+
+        try {
+            try (FileWriter writer = new FileWriter(stateFile)) {
+                new GsonBuilder().setPrettyPrinting().create().toJson(obj, writer);
+            }
+        } catch (Exception e) {
+            LogUtils.getLogger().error("Cannot save catalog state: " + e);
+        }
+    }
+
+    protected void loadState() {
+        try {
+            if (!Files.exists(stateFile.toPath()) || Files.size(stateFile.toPath()) == 0)
+                return;
+
+            try (FileReader reader = new FileReader(stateFile)) {
+                JsonObject obj = GsonHelper.parse(reader);
+                this.mode = Mode.fromSerializedString(obj.get("mode").getAsString());
+                this.order = Order.fromSerializedString(obj.get("order").getAsString());
+                this.sorting = Sorting.fromSerializedString(obj.get("sorting").getAsString());
+                this.exportSize = ExposureSize.byName(obj.get("export_size").getAsString());
+                this.exportLook = ExposureLook.byName(obj.get("export_look").getAsString());
+            }
+            catch (Exception e) {
+                throw e;
+            }
+        } catch (Exception e) {
+            LogUtils.getLogger().error("Cannot load catalog state: " + e);
+        }
     }
 }
