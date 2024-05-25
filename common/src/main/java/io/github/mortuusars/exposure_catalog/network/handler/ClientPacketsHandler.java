@@ -3,6 +3,7 @@ package io.github.mortuusars.exposure_catalog.network.handler;
 import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure_catalog.gui.screen.CatalogScreen;
 import io.github.mortuusars.exposure_catalog.gui.screen.OverlayScreen;
+import io.github.mortuusars.exposure_catalog.network.packet.client.NotifySendingStartS2CP;
 import io.github.mortuusars.exposure_catalog.network.packet.client.OpenCatalogS2CP;
 import io.github.mortuusars.exposure_catalog.network.packet.client.SendExposuresPartS2CP;
 import net.minecraft.client.Minecraft;
@@ -55,5 +56,14 @@ public class ClientPacketsHandler {
                 }
             }
         });
+    }
+
+    public static void notifyLoadingStart(NotifySendingStartS2CP packet) {
+        Screen openedScreen = Minecraft.getInstance().screen instanceof OverlayScreen overlayScreen ?
+                overlayScreen.getParent() : Minecraft.getInstance().screen;
+
+        if (openedScreen instanceof CatalogScreen catalogScreen) {
+            catalogScreen.onLoadingNotification();
+        }
     }
 }

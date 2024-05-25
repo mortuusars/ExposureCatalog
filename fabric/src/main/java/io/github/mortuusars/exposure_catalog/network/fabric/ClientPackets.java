@@ -2,6 +2,7 @@ package io.github.mortuusars.exposure_catalog.network.fabric;
 
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
 import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
+import io.github.mortuusars.exposure_catalog.network.packet.client.NotifySendingStartS2CP;
 import io.github.mortuusars.exposure_catalog.network.packet.client.OpenCatalogS2CP;
 import io.github.mortuusars.exposure_catalog.network.packet.client.SendExposuresPartS2CP;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -17,6 +18,7 @@ public class ClientPackets {
     public static void registerS2CPackets() {
         ClientPlayNetworking.registerGlobalReceiver(OpenCatalogS2CP.ID, new ClientHandler(OpenCatalogS2CP::fromBuffer));
         ClientPlayNetworking.registerGlobalReceiver(SendExposuresPartS2CP.ID, new ClientHandler(SendExposuresPartS2CP::fromBuffer));
+        ClientPlayNetworking.registerGlobalReceiver(NotifySendingStartS2CP.ID, new ClientHandler(NotifySendingStartS2CP::fromBuffer));
     }
 
     public static void sendToServer(IPacket packet) {

@@ -1,11 +1,13 @@
 package io.github.mortuusars.exposure_catalog.network.packet.server;
 
 import com.google.common.base.Preconditions;
+import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.ExposureServer;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
 import io.github.mortuusars.exposure_catalog.network.Packets;
 import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
+import io.github.mortuusars.exposure_catalog.network.packet.client.NotifySendingStartS2CP;
 import io.github.mortuusars.exposure_catalog.network.packet.client.SendExposuresPartS2CP;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
@@ -33,8 +35,14 @@ public final class QueryAllExposuresC2SP implements IPacket {
     public boolean handle(PacketDirection direction, @Nullable Player player) {
         Preconditions.checkArgument(player instanceof ServerPlayer, "Player is required for " + ID + " packet");
 
-        List<String> ids = ExposureServer.getExposureStorage().getAllIds();
-        sendExposures(ids, ((ServerPlayer) player));
+        new Thread(() -> {
+            try {
+                List<String> ids = ExposureServer.getExposureStorage().getAllIds();
+                sendExposures(ids, ((ServerPlayer) player));
+            } catch (Exception e) {
+                LogUtils.getLogger().error("Failed to load and send all exposures: " + e);
+            }
+        }).start();
 
         return true;
     }
@@ -44,8 +52,10 @@ public final class QueryAllExposuresC2SP implements IPacket {
         int size = 0;
         int part = 0;
 
+        Packets.sendToClient(new NotifySendingStartS2CP(), player);
+
         for (String exposureId : exposureIds) {
-            if (size > 7_500_000) {
+            if (size > 1_000_000) {
                 Packets.sendToClient(new SendExposuresPartS2CP(part, false, list), player);
                 list = new ArrayList<>();
                 size = 0;

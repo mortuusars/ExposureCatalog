@@ -4,6 +4,7 @@ package io.github.mortuusars.exposure_catalog.network.forge;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
 import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
+import io.github.mortuusars.exposure_catalog.network.packet.client.NotifySendingStartS2CP;
 import io.github.mortuusars.exposure_catalog.network.packet.client.OpenCatalogS2CP;
 import io.github.mortuusars.exposure_catalog.network.packet.client.SendExposuresPartS2CP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
@@ -32,17 +33,17 @@ public class PacketsImpl {
         // BOTH
 
         // SERVER
-        CHANNEL.messageBuilder(QueryAllExposuresC2SP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+        CHANNEL.messageBuilder(QueryAllExposuresC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(QueryAllExposuresC2SP::toBuffer)
                 .decoder(QueryAllExposuresC2SP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
-        CHANNEL.messageBuilder(DeleteExposureC2SP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+        CHANNEL.messageBuilder(DeleteExposureC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(DeleteExposureC2SP::toBuffer)
                 .decoder(DeleteExposureC2SP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
-        CHANNEL.messageBuilder(ExportExposureC2SP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+        CHANNEL.messageBuilder(ExportExposureC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(ExportExposureC2SP::toBuffer)
                 .decoder(ExportExposureC2SP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
@@ -58,6 +59,12 @@ public class PacketsImpl {
         CHANNEL.messageBuilder(SendExposuresPartS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(SendExposuresPartS2CP::toBuffer)
                 .decoder(SendExposuresPartS2CP::fromBuffer)
+                .consumerMainThread(PacketsImpl::handlePacket)
+                .add();
+
+        CHANNEL.messageBuilder(NotifySendingStartS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(NotifySendingStartS2CP::toBuffer)
+                .decoder(NotifySendingStartS2CP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
     }

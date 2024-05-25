@@ -1,5 +1,8 @@
 {
   "gui.exposure_catalog.catalog": "Exposures",
+  "gui.exposure_catalog.catalog.loading1": "Loading.",
+  "gui.exposure_catalog.catalog.loading2": "Loading..",
+  "gui.exposure_catalog.catalog.loading3": "Loading...",
   "gui.exposure_catalog.catalog.confirm.message.delete_many": "Are you sure you want to permanently delete %s exposures?",
   "gui.exposure_catalog.catalog.confirm.message.delete_one": "Are you sure you want to permanently delete %s?",
   "gui.exposure_catalog.catalog.delete": "Delete §8[Del]",

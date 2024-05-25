@@ -167,6 +167,7 @@ public class CatalogScreen extends Screen {
     protected ExposureSize exportSize = ExposureSize.X1;
     protected ExposureLook exportLook = ExposureLook.REGULAR;
 
+    protected boolean isExposuresLoading;
     protected Map<String, CompoundTag> exposures = new HashMap<>();
     protected List<String> exposureIds = Collections.emptyList();
     protected List<String> textures = Collections.emptyList();
@@ -193,6 +194,10 @@ public class CatalogScreen extends Screen {
         loadState();
     }
 
+    public void onLoadingNotification() {
+        isExposuresLoading = true;
+    }
+
     public void setExposures(@NotNull List<CompoundTag> exposuresMetadataList) {
         exposures.clear();
 
@@ -208,6 +213,8 @@ public class CatalogScreen extends Screen {
             this.topRowIndex = 0;
             refreshSearchResults();
         }
+
+        isExposuresLoading = false;
     }
 
     @Override
@@ -753,7 +760,15 @@ public class CatalogScreen extends Screen {
         guiGraphics.drawString(font, title, leftPos + 8, topPos + 8, 0xFF414141, false);
 
         // Count
-        if (!filteredItems.isEmpty()) {
+        if (isExposuresLoading) {
+            int dotAnimation = (int)(Util.getMillis() / 750 % 3) + 1;
+            Component component = Component.translatable("gui.exposure_catalog.catalog.loading" + dotAnimation)
+                    .withStyle(Style.EMPTY.withColor(0xFF414141));
+            guiGraphics.drawString(font, component, leftPos + (imageWidth / 2) - (font.width(component) / 2),
+                    topPos + 249, 0xFF414141, false);
+        }
+
+        if (!filteredItems.isEmpty() && !isExposuresLoading) {
             String filteredCountStr = Integer.toString(filteredItems.size());
 
             Component countComponent = Component.literal(filteredCountStr).withStyle(Style.EMPTY.withColor(0xFF414141));
