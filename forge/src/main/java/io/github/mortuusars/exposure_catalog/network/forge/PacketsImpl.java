@@ -4,9 +4,7 @@ package io.github.mortuusars.exposure_catalog.network.forge;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
 import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
-import io.github.mortuusars.exposure_catalog.network.packet.client.NotifySendingStartS2CP;
-import io.github.mortuusars.exposure_catalog.network.packet.client.OpenCatalogS2CP;
-import io.github.mortuusars.exposure_catalog.network.packet.client.SendExposuresPartS2CP;
+import io.github.mortuusars.exposure_catalog.network.packet.client.*;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposureC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.QueryAllExposuresC2SP;
@@ -65,6 +63,18 @@ public class PacketsImpl {
         CHANNEL.messageBuilder(NotifySendingStartS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(NotifySendingStartS2CP::toBuffer)
                 .decoder(NotifySendingStartS2CP::fromBuffer)
+                .consumerMainThread(PacketsImpl::handlePacket)
+                .add();
+
+        CHANNEL.messageBuilder(NotifyPartSentS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(NotifyPartSentS2CP::toBuffer)
+                .decoder(NotifyPartSentS2CP::fromBuffer)
+                .consumerMainThread(PacketsImpl::handlePacket)
+                .add();
+
+        CHANNEL.messageBuilder(SendExposuresCountS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(SendExposuresCountS2CP::toBuffer)
+                .decoder(SendExposuresCountS2CP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
     }

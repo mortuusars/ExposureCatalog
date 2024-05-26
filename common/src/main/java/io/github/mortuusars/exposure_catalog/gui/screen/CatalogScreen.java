@@ -65,22 +65,25 @@ public class CatalogScreen extends Screen {
 
     public record Thumbnail(int index, int gridIndex, Either<String, ResourceLocation> idOrTexture, Rect2i area,
                             boolean selected) {
+
         public boolean isMouseOver(double mouseX, double mouseY) {
             return mouseX >= area.getX() && mouseX < area.getX() + area.getWidth()
                     && mouseY >= area.getY() && mouseY < area.getY() + area.getHeight();
         }
     }
-
     public enum Mode implements StringRepresentable {
         EXPOSURES("exposures"), TEXTURES("textures");
+
         private final String name;
         Mode(String name) {
             this.name = name;
         }
+
         @Override
         public @NotNull String getSerializedName() {
             return name;
         }
+
         public static Mode fromSerializedString(String str) {
             for (Mode value : values()) {
                 if (value.getSerializedName().equals(str))
@@ -88,18 +91,21 @@ public class CatalogScreen extends Screen {
             }
             throw new IllegalArgumentException(str + " cannot be deserialized to Mode");
         }
-    }
 
+    }
     public enum Order implements StringRepresentable {
         ASCENDING("ascending"), DESCENDING("descending");
+
         private final String name;
         Order(String name) {
             this.name = name;
         }
+
         @Override
         public @NotNull String getSerializedName() {
             return name;
         }
+
         public static Order fromSerializedString(String str) {
             for (Order value : values()) {
                 if (value.getSerializedName().equals(str))
@@ -107,18 +113,21 @@ public class CatalogScreen extends Screen {
             }
             throw new IllegalArgumentException(str + " cannot be deserialized to Order");
         }
-    }
 
+    }
     public enum Sorting implements StringRepresentable {
         ALPHABETICAL("alphabetical"), DATE("date");
+
         private final String name;
         Sorting(String name) {
             this.name = name;
         }
+
         @Override
         public @NotNull String getSerializedName() {
             return name;
         }
+
         public static Sorting fromSerializedString(String str) {
             for (Sorting value : values()) {
                 if (value.getSerializedName().equals(str))
@@ -126,16 +135,17 @@ public class CatalogScreen extends Screen {
             }
             throw new IllegalArgumentException(str + " cannot be deserialized to Sorting");
         }
-    }
 
+    }
     public static final ResourceLocation TEXTURE = ExposureCatalog.resource("textures/gui/catalog.png");
 
     public static final int ROWS = 4;
-    public static final int COLS = 6;
 
+    public static final int COLS = 6;
     protected final File stateFile = new File(Minecraft.getInstance().gameDirectory, "exposure_catalog_state.json");
 
     protected int imageWidth;
+
     protected int imageHeight;
     protected int leftPos;
     protected int topPos;
@@ -146,8 +156,8 @@ public class CatalogScreen extends Screen {
     protected int scrollThumbBotHeight = 2;
     protected Rect2i searchBarArea = new Rect2i(219, 7, 118, 10);
     protected Rect2i thumbnailsArea = new Rect2i(8, 22, 329, 221);
-
     protected EditBox searchBox;
+
     protected Button exposuresModeButton;
     protected Button texturesModeButton;
     protected Rect2i scrollThumb = new Rect2i(0, 0, 0, 0);
@@ -159,32 +169,37 @@ public class CatalogScreen extends Screen {
     protected Button refreshButton;
     protected Button exportButton;
     protected Button deleteButton;
-
     protected Mode mode = Mode.EXPOSURES;
+
     protected Order order = Order.ASCENDING;
     protected Sorting sorting = Sorting.DATE;
-
     protected ExposureSize exportSize = ExposureSize.X1;
-    protected ExposureLook exportLook = ExposureLook.REGULAR;
 
+    protected ExposureLook exportLook = ExposureLook.REGULAR;
     protected boolean isExposuresLoading;
-    protected Map<String, CompoundTag> exposures = new HashMap<>();
-    protected List<String> exposureIds = Collections.emptyList();
+
+    protected int totalExposuresCount;
+    protected int pagesCount = 0;
+    protected Map<Integer, ArrayList<String>> pages = new HashMap<>();
+    //    protected Map<String, CompoundTag> exposures = new HashMap<>();
+    protected List<String> exposureIds = new ArrayList<>();
     protected List<String> textures = Collections.emptyList();
+
+    protected int currentPage = 0;
+
     protected ArrayList<String> filteredItems = new ArrayList<>();
     protected ArrayList<Integer> selectedIndexes = new ArrayList<>();
     protected int selectionStartIndex = 0;
-
     protected int totalRows = 0;
+
     protected int topRowIndex = 0;
-
     protected boolean isThumbnailsGridFocused;
-    protected int focusedThumbnailIndex;
 
+    protected int focusedThumbnailIndex;
     protected boolean isDraggingScrollbar = false;
+
     protected int topRowIndexAtDragStart = 0;
     protected double dragDelta = 0;
-
     protected boolean initialized;
 
     protected long refreshedAt = 0;
@@ -192,29 +207,65 @@ public class CatalogScreen extends Screen {
     public CatalogScreen() {
         super(Component.translatable("gui.exposure_catalog.catalog"));
         loadState();
+        Packets.sendToServer(new QueryAllExposuresC2SP(-1));
     }
 
-    public void onLoadingNotification() {
+    public void onTotalCountReceived(int count) {
+        this.totalExposuresCount = count;
+        this.pagesCount = Mth.ceil(count / (float) ExposureCatalog.EXPOSURES_PER_PAGE);
+
+        if (pagesCount == 0) {
+            Minecraft.getInstance().player.displayClientMessage(Component.literal("No exposures."), false);
+            return;
+        }
+
+        Packets.sendToServer(new QueryAllExposuresC2SP(0));
+    }
+
+    public void onReceivingStartNotification(int page, List<String> exposureIds) {
+        pages.put(page, new ArrayList<>());
+        exposureIds.clear();
         isExposuresLoading = true;
     }
 
+    public void onPartSent(int page, List<String> ids, int allCount) {
+        if (ids.isEmpty() && allCount == -1) { // All received
+            isExposuresLoading = false;
+            orderAndSortExposuresList(this.order, this.sorting);
+
+            LogUtils.getLogger().info("Finished receiving.");
+        } else {
+            pages.computeIfAbsent(page, k -> new ArrayList<>());
+
+            ArrayList<String> list = pages.get(page);
+            list.addAll(ids);
+            this.exposureIds = list;
+            orderAndSortExposuresList(this.order, this.sorting);
+            if (mode == Mode.EXPOSURES) {
+                this.topRowIndex = 0;
+                refreshSearchResults();
+            }
+            LogUtils.getLogger().info("Part received. " + exposureIds.size());
+        }
+    }
+
     public void setExposures(@NotNull List<CompoundTag> exposuresMetadataList) {
-        exposures.clear();
-
-        for (CompoundTag tag : exposuresMetadataList) {
-            String exposureId = tag.getString("Id");
-            exposures.put(exposureId, tag);
-        }
-
-        exposureIds = new ArrayList<>(exposures.keySet());
-        orderAndSortExposuresList(this.order, this.sorting);
-
-        if (mode == Mode.EXPOSURES) {
-            this.topRowIndex = 0;
-            refreshSearchResults();
-        }
-
-        isExposuresLoading = false;
+//        exposures.clear();
+//
+//        for (CompoundTag tag : exposuresMetadataList) {
+//            String exposureId = tag.getString("Id");
+//            exposures.put(exposureId, tag);
+//        }
+//
+//        exposureIds = new ArrayList<>(exposures.keySet());
+//        orderAndSortExposuresList(this.order, this.sorting);
+//
+//        if (mode == Mode.EXPOSURES) {
+//            this.topRowIndex = 0;
+//            refreshSearchResults();
+//        }
+//
+//        isExposuresLoading = false;
     }
 
     @Override
@@ -347,7 +398,7 @@ public class CatalogScreen extends Screen {
         addRenderableWidget(deleteButton);
 
         if (!initialized) {
-            refresh();
+//            refresh();
             initialized = true;
         }
 
@@ -396,6 +447,8 @@ public class CatalogScreen extends Screen {
     }
 
     protected boolean canRefresh() {
+        if (mode == Mode.EXPOSURES && isExposuresLoading)
+            return false;
         return Util.getMillis() - refreshedAt >= REFRESH_COOLDOWN_MS;
     }
 
@@ -404,7 +457,8 @@ public class CatalogScreen extends Screen {
             return;
 
         if (mode == Mode.EXPOSURES) {
-            Packets.sendToServer(new QueryAllExposuresC2SP());
+            ExposureClient.getExposureStorage().clear();
+            Packets.sendToServer(new QueryAllExposuresC2SP(currentPage));
         } else if (mode == Mode.TEXTURES) {
             Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
             textures = resources.keySet().stream().map(ResourceLocation::toString).collect(Collectors.toCollection(ArrayList::new));
@@ -529,7 +583,7 @@ public class CatalogScreen extends Screen {
     }
 
     protected void orderAndSortExposuresList(Order order, Sorting sorting) {
-        exposureIds = new ArrayList<>(exposures.keySet());
+//        exposureIds = new ArrayList<>(exposures.keySet());
 
         exposureIds.sort(Comparator.naturalOrder());
 
@@ -541,7 +595,8 @@ public class CatalogScreen extends Screen {
                 }
 
                 private long getTimestamp(String exposureId) {
-                    @Nullable CompoundTag tag = exposures.get(exposureId);
+                    @Nullable CompoundTag tag = ExposureClient.getExposureStorage().getOrQuery(exposureId)
+                            .map(ExposureSavedData::getProperties).orElse(null);
                     return tag != null ? tag.getLong(ExposureSavedData.TIMESTAMP_PROPERTY) : 0L;
                 }
             };
@@ -713,8 +768,7 @@ public class CatalogScreen extends Screen {
             lines.add(Component.translatable("gui.exposure_catalog.thumbnail.tooltip.view"));
             lines.add(Component.translatable("gui.exposure_catalog.thumbnail.tooltip.selection"));
             lines.add(Component.translatable("gui.exposure_catalog.thumbnail.tooltip.selection.shift"));
-        }
-        else {
+        } else {
             lines.add(Component.translatable("gui.exposure_catalog.thumbnail.tooltip.control_info"));
         }
         return lines;
@@ -761,7 +815,7 @@ public class CatalogScreen extends Screen {
 
         // Count
         if (isExposuresLoading) {
-            int dotAnimation = (int)(Util.getMillis() / 750 % 3) + 1;
+            int dotAnimation = (int) (Util.getMillis() / 750 % 3) + 1;
             Component component = Component.translatable("gui.exposure_catalog.catalog.loading" + dotAnimation)
                     .withStyle(Style.EMPTY.withColor(0xFF414141));
             guiGraphics.drawString(font, component, leftPos + (imageWidth / 2) - (font.width(component) / 2),
@@ -782,6 +836,10 @@ public class CatalogScreen extends Screen {
             guiGraphics.drawString(font, countComponent, leftPos + (imageWidth / 2) - (font.width(countComponent) / 2),
                     topPos + 249, 0xFF414141, false);
         }
+
+
+        Component pageComponent = Component.literal(currentPage + 1 + "").withStyle(Style.EMPTY.withColor(0xFF414141));
+        guiGraphics.drawString(font, pageComponent, leftPos + 50, topPos + 249, 0xFF414141, false);
 
         // SearchBox placeholder text
         if (searchBox.isVisible() && !searchBox.isFocused() && searchBox.getValue().isEmpty()) {
@@ -910,8 +968,7 @@ public class CatalogScreen extends Screen {
                         selectionStartIndex = focusedThumbnailIndex;
                     }
                     updateElements();
-                }
-                else {
+                } else {
                     openPhotographView(thumbnails.get(focusedThumbnailIndex).index());
                 }
                 return true;
@@ -940,8 +997,7 @@ public class CatalogScreen extends Screen {
                 updateElements();
 
                 return true;
-            }
-            else if (!filteredItems.isEmpty() && Screen.hasShiftDown() && getFocused() == refreshButton && !isThumbnailsGridFocused) {
+            } else if (!filteredItems.isEmpty() && Screen.hasShiftDown() && getFocused() == refreshButton && !isThumbnailsGridFocused) {
                 setFocused(null);
                 isThumbnailsGridFocused = true;
                 focusedThumbnailIndex = 0;
@@ -951,8 +1007,7 @@ public class CatalogScreen extends Screen {
                 updateElements();
 
                 return true;
-            }
-            else if (isThumbnailsGridFocused) {
+            } else if (isThumbnailsGridFocused) {
                 Button newFocusTarget = Screen.hasShiftDown() ?
                         mode == Mode.EXPOSURES ? texturesModeButton : exposuresModeButton
                         : refreshButton;
@@ -975,32 +1030,26 @@ public class CatalogScreen extends Screen {
                 if (newIndex < 0 && topRowIndex > 0) {
                     scroll(-1);
                     focusedThumbnailIndex = COLS - 1;
-                }
-                else
+                } else
                     focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
             } else if (keyCode == InputConstants.KEY_RIGHT) {
                 int newIndex = focusedThumbnailIndex + 1;
                 if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
                     scroll(1);
                     focusedThumbnailIndex = ROWS * COLS - COLS;
-                }
-                else
+                } else
                     focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-            }
-            else if (keyCode == InputConstants.KEY_UP) {
+            } else if (keyCode == InputConstants.KEY_UP) {
                 int newIndex = focusedThumbnailIndex - COLS;
                 if (newIndex < 0 && topRowIndex > 0) {
                     scroll(-1);
-                }
-                else
+                } else
                     focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-            }
-            else if (keyCode == InputConstants.KEY_DOWN) {
+            } else if (keyCode == InputConstants.KEY_DOWN) {
                 int newIndex = focusedThumbnailIndex + COLS;
                 if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
                     scroll(1);
-                }
-                else
+                } else
                     focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
             }
 
@@ -1008,6 +1057,27 @@ public class CatalogScreen extends Screen {
             selectedIndexes.add(focusedThumbnailIndex + (topRowIndex * COLS));
             updateElements();
 
+            return true;
+        }
+
+
+        if (keyCode >= InputConstants.KEY_1 && keyCode <= InputConstants.KEY_9) {
+            currentPage = Mth.clamp(keyCode - 49, 0, pagesCount);
+
+            if (!pages.containsKey(currentPage))
+                Packets.sendToServer(new QueryAllExposuresC2SP(currentPage));
+            else {
+                this.exposureIds = pages.get(currentPage);
+                orderAndSortExposuresList(this.order, this.sorting);
+                if (mode == Mode.EXPOSURES) {
+                    this.topRowIndex = 0;
+                    refreshSearchResults();
+                }
+            }
+
+            refreshSearchResults();
+            updateButtons();
+            playClickSound();
             return true;
         }
 
@@ -1146,6 +1216,7 @@ public class CatalogScreen extends Screen {
     @Override
     public void onClose() {
         saveState();
+        ExposureClient.getExposureStorage().clear();
         super.onClose();
     }
 
@@ -1178,8 +1249,7 @@ public class CatalogScreen extends Screen {
                 this.sorting = Sorting.fromSerializedString(obj.get("sorting").getAsString());
                 this.exportSize = ExposureSize.byName(obj.get("export_size").getAsString());
                 this.exportLook = ExposureLook.byName(obj.get("export_look").getAsString());
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 throw e;
             }
         } catch (Exception e) {

@@ -15,6 +15,8 @@ import java.util.function.Supplier;
 public class ExposureCatalog {
     public static final String ID = "exposure_catalog";
 
+    public static final int EXPOSURES_PER_PAGE = 600;
+
     public static void init() {
         Blocks.init();
         BlockEntityTypes.init();

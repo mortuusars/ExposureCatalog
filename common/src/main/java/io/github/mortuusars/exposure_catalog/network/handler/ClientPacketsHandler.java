@@ -3,9 +3,7 @@ package io.github.mortuusars.exposure_catalog.network.handler;
 import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure_catalog.gui.screen.CatalogScreen;
 import io.github.mortuusars.exposure_catalog.gui.screen.OverlayScreen;
-import io.github.mortuusars.exposure_catalog.network.packet.client.NotifySendingStartS2CP;
-import io.github.mortuusars.exposure_catalog.network.packet.client.OpenCatalogS2CP;
-import io.github.mortuusars.exposure_catalog.network.packet.client.SendExposuresPartS2CP;
+import io.github.mortuusars.exposure_catalog.network.packet.client.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.nbt.CompoundTag;
@@ -13,6 +11,7 @@ import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class ClientPacketsHandler {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -48,8 +47,7 @@ public class ClientPacketsHandler {
 
                 if (openedScreen instanceof CatalogScreen catalogScreen) {
                     catalogScreen.setExposures(exposuresMetadata);
-                }
-                else {
+                } else {
                     LOGGER.warn("Catalog Screen is not opened. Received exposures would be discarded.");
                     exposuresMetadata = new ArrayList<>();
                     lastPart = -1;
@@ -58,12 +56,28 @@ public class ClientPacketsHandler {
         });
     }
 
-    public static void notifyLoadingStart(NotifySendingStartS2CP packet) {
+    public static void notifySendingStart(NotifySendingStartS2CP packet) {
+        executeOnMainThread(() ->
+                getCatalogScreen().ifPresent(screen ->
+                        screen.onReceivingStartNotification(packet.page(), packet.exposureIds())));
+    }
+
+    public static void notifyPartSent(NotifyPartSentS2CP packet) {
+        executeOnMainThread(() ->
+                getCatalogScreen().ifPresent(screen ->
+                        screen.onPartSent(packet.page(), packet.exposureIds(), packet.allCount())));
+    }
+
+    public static void onExposuresCountReceived(SendExposuresCountS2CP packet) {
+        executeOnMainThread(() ->
+                getCatalogScreen().ifPresent(screen ->
+                        screen.onTotalCountReceived(packet.count())));
+    }
+
+    private static Optional<CatalogScreen> getCatalogScreen() {
         Screen openedScreen = Minecraft.getInstance().screen instanceof OverlayScreen overlayScreen ?
                 overlayScreen.getParent() : Minecraft.getInstance().screen;
 
-        if (openedScreen instanceof CatalogScreen catalogScreen) {
-            catalogScreen.onLoadingNotification();
-        }
+        return openedScreen instanceof CatalogScreen catalogScreen ? Optional.of(catalogScreen) : Optional.empty();
     }
 }

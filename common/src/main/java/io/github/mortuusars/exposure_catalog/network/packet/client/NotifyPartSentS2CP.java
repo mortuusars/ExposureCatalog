@@ -12,8 +12,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-public record NotifySendingStartS2CP(int page, List<String> exposureIds) implements IPacket {
-    public static final ResourceLocation ID = ExposureCatalog.resource("notify_sending_start");
+public record NotifyPartSentS2CP(int page, int allCount, List<String> exposureIds) implements IPacket {
+    public static final ResourceLocation ID = ExposureCatalog.resource("notify_part_sent");
 
     @Override
     public ResourceLocation getId() {
@@ -23,26 +23,28 @@ public record NotifySendingStartS2CP(int page, List<String> exposureIds) impleme
     @Override
     public FriendlyByteBuf toBuffer(FriendlyByteBuf buffer) {
         buffer.writeInt(page);
+        buffer.writeInt(allCount);
         buffer.writeInt(exposureIds.size());
-        for (String exposureId : exposureIds) {
-            buffer.writeUtf(exposureId);
+        for (int i = 0; i < exposureIds.size(); i++) {
+            buffer.writeUtf(exposureIds.get(i));
         }
         return buffer;
     }
 
-    public static NotifySendingStartS2CP fromBuffer(FriendlyByteBuf buffer) {
+    public static NotifyPartSentS2CP fromBuffer(FriendlyByteBuf buffer) {
         int page = buffer.readInt();
+        int all = buffer.readInt();
         int count = buffer.readInt();
         List<String> ids = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             ids.add(buffer.readUtf());
         }
-        return new NotifySendingStartS2CP(page, ids);
+        return new NotifyPartSentS2CP(page, all, ids);
     }
 
     @Override
     public boolean handle(PacketDirection direction, @Nullable Player player) {
-        ClientPacketsHandler.notifySendingStart(this);
+        ClientPacketsHandler.notifyPartSent(this);
         return true;
     }
 }
