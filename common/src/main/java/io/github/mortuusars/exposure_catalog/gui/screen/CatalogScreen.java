@@ -20,11 +20,13 @@ import io.github.mortuusars.exposure.item.PhotographItem;
 import io.github.mortuusars.exposure.render.modifiers.ExposurePixelModifiers;
 import io.github.mortuusars.exposure.util.ItemAndStack;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
+import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
+import io.github.mortuusars.exposure_catalog.data.client.ClientExposuresCache;
 import io.github.mortuusars.exposure_catalog.gui.screen.tooltip.BelowOrAboveAreaTooltipPositioner;
 import io.github.mortuusars.exposure_catalog.network.Packets;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposureC2SP;
-import io.github.mortuusars.exposure_catalog.network.packet.server.QueryAllExposuresC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.server.QueryExposuresC2SP;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
@@ -61,11 +63,11 @@ import java.util.stream.IntStream;
 
 public class CatalogScreen extends Screen {
     public static final int TEX_SIZE = 512;
-    public static final int REFRESH_COOLDOWN_MS = 1000; // 1 second
+    public static final int REFRESH_COOLDOWN_MS = 500; // 0.5 seconds
+    public static final int RELOAD_COOLDOWN_MS = 5000; // 5 seconds
 
     public record Thumbnail(int index, int gridIndex, Either<String, ResourceLocation> idOrTexture, Rect2i area,
                             boolean selected) {
-
         public boolean isMouseOver(double mouseX, double mouseY) {
             return mouseX >= area.getX() && mouseX < area.getX() + area.getWidth()
                     && mouseY >= area.getY() && mouseY < area.getY() + area.getHeight();
@@ -178,14 +180,8 @@ public class CatalogScreen extends Screen {
     protected ExposureLook exportLook = ExposureLook.REGULAR;
     protected boolean isExposuresLoading;
 
-    protected int totalExposuresCount;
-    protected int pagesCount = 0;
-    protected Map<Integer, ArrayList<String>> pages = new HashMap<>();
-    //    protected Map<String, CompoundTag> exposures = new HashMap<>();
-    protected List<String> exposureIds = new ArrayList<>();
+    protected List<String> exposures = new ArrayList<>();
     protected List<String> textures = Collections.emptyList();
-
-    protected int currentPage = 0;
 
     protected ArrayList<String> filteredItems = new ArrayList<>();
     protected ArrayList<Integer> selectedIndexes = new ArrayList<>();
@@ -202,54 +198,64 @@ public class CatalogScreen extends Screen {
     protected double dragDelta = 0;
     protected boolean initialized;
 
-    protected long refreshedAt = 0;
+    protected long refreshCooldownExpireTime = 0;
 
     public CatalogScreen() {
         super(Component.translatable("gui.exposure_catalog.catalog"));
         loadState();
-        Packets.sendToServer(new QueryAllExposuresC2SP(-1));
     }
 
-    public void onTotalCountReceived(int count) {
-        this.totalExposuresCount = count;
-        this.pagesCount = Mth.ceil(count / (float) ExposureCatalog.EXPOSURES_PER_PAGE);
+    public void onExposuresReceived() {
+        isExposuresLoading = false;
+        this.exposures = new ArrayList<>(ClientExposuresCache.getExposures().keySet().stream().toList());
+        orderAndSortExposuresList(this.order, this.sorting);
 
-        if (pagesCount == 0) {
-            Minecraft.getInstance().player.displayClientMessage(Component.literal("No exposures."), false);
-            return;
-        }
-
-        Packets.sendToServer(new QueryAllExposuresC2SP(0));
-    }
-
-    public void onReceivingStartNotification(int page, List<String> exposureIds) {
-        pages.put(page, new ArrayList<>());
-        exposureIds.clear();
-        isExposuresLoading = true;
-    }
-
-    public void onPartSent(int page, List<String> ids, int allCount) {
-        if (ids.isEmpty() && allCount == -1) { // All received
-            isExposuresLoading = false;
-            orderAndSortExposuresList(this.order, this.sorting);
-
-            LogUtils.getLogger().info("Finished receiving.");
-        } else {
-            pages.computeIfAbsent(page, k -> new ArrayList<>());
-
-            ArrayList<String> list = pages.get(page);
-            list.addAll(ids);
-            this.exposureIds = list;
-            orderAndSortExposuresList(this.order, this.sorting);
-            if (mode == Mode.EXPOSURES) {
-                this.topRowIndex = 0;
-                refreshSearchResults();
-            }
-            LogUtils.getLogger().info("Part received. " + exposureIds.size());
+        if (mode == Mode.EXPOSURES) {
+            this.topRowIndex = 0;
+            refreshSearchResults();
         }
     }
 
-    public void setExposures(@NotNull List<CompoundTag> exposuresMetadataList) {
+//    public void onTotalCountReceived(int count) {
+//        this.totalExposuresCount = count;
+//        this.pagesCount = Mth.ceil(count / (float) ExposureCatalog.EXPOSURES_PER_PAGE);
+//
+//        if (pagesCount == 0) {
+//            Minecraft.getInstance().player.displayClientMessage(Component.literal("No exposures."), false);
+//            return;
+//        }
+//
+//        Packets.sendToServer(new QueryExposuresC2SP(0));
+//    }
+
+//    public void onReceivingStartNotification(int page, List<String> exposureIds) {
+//        pages.put(page, new ArrayList<>());
+//        exposureIds.clear();
+//        isExposuresLoading = true;
+//    }
+
+//    public void onPartSent(int page, List<String> ids, int allCount) {
+//        if (ids.isEmpty() && allCount == -1) { // All received
+//            isExposuresLoading = false;
+//            orderAndSortExposuresList(this.order, this.sorting);
+//
+//            LogUtils.getLogger().info("Finished receiving.");
+//        } else {
+//            pages.computeIfAbsent(page, k -> new ArrayList<>());
+//
+//            ArrayList<String> list = pages.get(page);
+//            list.addAll(ids);
+//            this.exposures = list;
+//            orderAndSortExposuresList(this.order, this.sorting);
+//            if (mode == Mode.EXPOSURES) {
+//                this.topRowIndex = 0;
+//                refreshSearchResults();
+//            }
+//            LogUtils.getLogger().info("Part received. " + exposures.size());
+//        }
+//    }
+
+//    public void setExposures(@NotNull List<CompoundTag> exposuresMetadataList) {
 //        exposures.clear();
 //
 //        for (CompoundTag tag : exposuresMetadataList) {
@@ -266,7 +272,7 @@ public class CatalogScreen extends Screen {
 //        }
 //
 //        isExposuresLoading = false;
-    }
+//    }
 
     @Override
     protected void init() {
@@ -319,7 +325,9 @@ public class CatalogScreen extends Screen {
 
         refreshButton = new ImageButton(leftPos + 7, topPos + 247, 12, 12, 449, 36,
                 12, TEXTURE, 512, 512, b -> refresh());
-        refreshButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.refresh")));
+        refreshButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.refresh")
+                .append("\n")
+                .append(Component.translatable("gui.exposure_catalog.catalog.refresh.tooltip"))));
         addRenderableWidget(refreshButton);
 
         exportButton = new ImageButton(leftPos + 26, topPos + 247, 12, 12, 473, 36,
@@ -398,7 +406,8 @@ public class CatalogScreen extends Screen {
         addRenderableWidget(deleteButton);
 
         if (!initialized) {
-//            refresh();
+            ExposureClient.getExposureStorage().clear();
+            Packets.sendToServer(new QueryExposuresC2SP(false));
             initialized = true;
         }
 
@@ -411,7 +420,7 @@ public class CatalogScreen extends Screen {
     }
 
     protected Component createExportButtonTooltip() {
-        MutableComponent tooltip = selectedIndexes.isEmpty() || selectedIndexes.size() == exposureIds.size() ?
+        MutableComponent tooltip = selectedIndexes.isEmpty() || selectedIndexes.size() == exposures.size() ?
                 Component.translatable("gui.exposure_catalog.catalog.export.all")
                 : Component.translatable("gui.exposure_catalog.catalog.export.selected");
 
@@ -447,9 +456,13 @@ public class CatalogScreen extends Screen {
     }
 
     protected boolean canRefresh() {
+        if (mode == Mode.TEXTURES)
+            return true;
+
         if (mode == Mode.EXPOSURES && isExposuresLoading)
             return false;
-        return Util.getMillis() - refreshedAt >= REFRESH_COOLDOWN_MS;
+
+        return Util.getMillis() >= refreshCooldownExpireTime;
     }
 
     protected void refresh() {
@@ -458,7 +471,9 @@ public class CatalogScreen extends Screen {
 
         if (mode == Mode.EXPOSURES) {
             ExposureClient.getExposureStorage().clear();
-            Packets.sendToServer(new QueryAllExposuresC2SP(currentPage));
+            boolean reload = Screen.hasShiftDown();
+            Packets.sendToServer(new QueryExposuresC2SP(reload));
+            refreshCooldownExpireTime = Util.getMillis() + (reload ? RELOAD_COOLDOWN_MS : REFRESH_COOLDOWN_MS);
         } else if (mode == Mode.TEXTURES) {
             Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
             textures = resources.keySet().stream().map(ResourceLocation::toString).collect(Collectors.toCollection(ArrayList::new));
@@ -466,8 +481,6 @@ public class CatalogScreen extends Screen {
             refreshSearchResults();
             updateElements();
         }
-
-        refreshedAt = Util.getMillis();
     }
 
     protected void exportExposures() {
@@ -549,7 +562,7 @@ public class CatalogScreen extends Screen {
     protected void changeMode(Mode mode) {
         this.mode = mode;
 
-        if ((mode == Mode.EXPOSURES && exposureIds.isEmpty()) ||
+        if ((mode == Mode.EXPOSURES && exposures.isEmpty()) ||
                 (mode == Mode.TEXTURES && textures.isEmpty())) {
             refresh();
         }
@@ -583,9 +596,9 @@ public class CatalogScreen extends Screen {
     }
 
     protected void orderAndSortExposuresList(Order order, Sorting sorting) {
-//        exposureIds = new ArrayList<>(exposures.keySet());
+        exposures = new ArrayList<>(ClientExposuresCache.getExposures().keySet().stream().toList());
 
-        exposureIds.sort(Comparator.naturalOrder());
+        exposures.sort(Comparator.naturalOrder());
 
         if (sorting == Sorting.DATE) {
             Comparator<String> comparator = new Comparator<>() {
@@ -595,17 +608,16 @@ public class CatalogScreen extends Screen {
                 }
 
                 private long getTimestamp(String exposureId) {
-                    @Nullable CompoundTag tag = ExposureClient.getExposureStorage().getOrQuery(exposureId)
-                            .map(ExposureSavedData::getProperties).orElse(null);
-                    return tag != null ? tag.getLong(ExposureSavedData.TIMESTAMP_PROPERTY) : 0L;
+                    @Nullable ExposureInfo exposureData = ClientExposuresCache.getExposures().get(exposureId);
+                    return exposureData != null ? exposureData.getTimestampUnixSeconds() : 0L;
                 }
             };
 
-            exposureIds.sort(comparator);
+            exposures.sort(comparator);
         }
 
         if (order == Order.DESCENDING)
-            Collections.reverse(exposureIds);
+            Collections.reverse(exposures);
     }
 
     protected void orderTexturesList(Order order) {
@@ -627,7 +639,7 @@ public class CatalogScreen extends Screen {
     protected void refreshSearchResults() {
         filteredItems.clear();
 
-        List<String> items = mode == Mode.EXPOSURES ? exposureIds : textures;
+        List<String> items = mode == Mode.EXPOSURES ? exposures : textures;
 
         String filter = searchBox != null ? searchBox.getValue() : "";
         if (filter.isEmpty()) {
@@ -836,10 +848,6 @@ public class CatalogScreen extends Screen {
             guiGraphics.drawString(font, countComponent, leftPos + (imageWidth / 2) - (font.width(countComponent) / 2),
                     topPos + 249, 0xFF414141, false);
         }
-
-
-        Component pageComponent = Component.literal(currentPage + 1 + "").withStyle(Style.EMPTY.withColor(0xFF414141));
-        guiGraphics.drawString(font, pageComponent, leftPos + 50, topPos + 249, 0xFF414141, false);
 
         // SearchBox placeholder text
         if (searchBox.isVisible() && !searchBox.isFocused() && searchBox.getValue().isEmpty()) {
@@ -1057,27 +1065,6 @@ public class CatalogScreen extends Screen {
             selectedIndexes.add(focusedThumbnailIndex + (topRowIndex * COLS));
             updateElements();
 
-            return true;
-        }
-
-
-        if (keyCode >= InputConstants.KEY_1 && keyCode <= InputConstants.KEY_9) {
-            currentPage = Mth.clamp(keyCode - 49, 0, pagesCount);
-
-            if (!pages.containsKey(currentPage))
-                Packets.sendToServer(new QueryAllExposuresC2SP(currentPage));
-            else {
-                this.exposureIds = pages.get(currentPage);
-                orderAndSortExposuresList(this.order, this.sorting);
-                if (mode == Mode.EXPOSURES) {
-                    this.topRowIndex = 0;
-                    refreshSearchResults();
-                }
-            }
-
-            refreshSearchResults();
-            updateButtons();
-            playClickSound();
             return true;
         }
 

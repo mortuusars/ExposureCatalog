@@ -1,10 +1,10 @@
 package io.github.mortuusars.exposure_catalog.network.packet.client;
 
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
+import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
 import io.github.mortuusars.exposure_catalog.network.handler.ClientPacketsHandler;
 import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
@@ -13,8 +13,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-public record SendExposuresPartS2CP(int partIndex, boolean isLastPart, List<CompoundTag> exposuresMetadataList) implements IPacket {
-    public static final ResourceLocation ID = ExposureCatalog.resource("send_exposures_part");
+public record SendExposuresDataPartS2CP(int partIndex, boolean isLastPart, List<ExposureInfo> exposures) implements IPacket {
+    public static final ResourceLocation ID = ExposureCatalog.resource("send_exposures_data_part");
 
     @Override
     public ResourceLocation getId() {
@@ -24,22 +24,22 @@ public record SendExposuresPartS2CP(int partIndex, boolean isLastPart, List<Comp
     public FriendlyByteBuf toBuffer(FriendlyByteBuf buffer) {
         buffer.writeInt(partIndex);
         buffer.writeBoolean(isLastPart);
-        buffer.writeInt(exposuresMetadataList.size());
-        for (CompoundTag tag : exposuresMetadataList) {
-            buffer.writeNbt(tag);
+        buffer.writeInt(exposures.size());
+        for (ExposureInfo data : exposures) {
+            data.toBuffer(buffer);
         }
         return buffer;
     }
 
-    public static SendExposuresPartS2CP fromBuffer(FriendlyByteBuf buffer) {
+    public static SendExposuresDataPartS2CP fromBuffer(FriendlyByteBuf buffer) {
         int part = buffer.readInt();
         boolean isLastPart = buffer.readBoolean();
         int count = buffer.readInt();
-        List<CompoundTag> list = new ArrayList<>();
+        List<ExposureInfo> list = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            list.add(buffer.readAnySizeNbt());
+            list.add(ExposureInfo.fromBuffer(buffer));
         }
-        return new SendExposuresPartS2CP(part, isLastPart, list);
+        return new SendExposuresDataPartS2CP(part, isLastPart, list);
     }
 
     @Override

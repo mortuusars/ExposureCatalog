@@ -29,6 +29,7 @@
   "gui.exposure_catalog.catalog.order.ascending": "Order By: Ascending",
   "gui.exposure_catalog.catalog.order.descending": "Order By: Descending",
   "gui.exposure_catalog.catalog.refresh": "Refresh §8[Ctrl+R]",
+  "gui.exposure_catalog.catalog.refresh.tooltip": "§8Hold [§7Shift§8] to reload all exposures",
   "gui.exposure_catalog.catalog.search_bar_placeholder_text": "Search",
   "gui.exposure_catalog.catalog.sort.alphabetical": "Sort: Alphabetically",
   "gui.exposure_catalog.catalog.sort.date": "Sort: By Date",

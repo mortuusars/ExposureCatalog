@@ -1,11 +1,9 @@
 package io.github.mortuusars.exposure_catalog.forge.event;
 
-import io.github.mortuusars.exposure_catalog.CatalogExposureSender;
+import io.github.mortuusars.exposure_catalog.data.server.CatalogExposureSender;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.command.CatalogCommand;
 import io.github.mortuusars.exposure_catalog.network.forge.PacketsImpl;
-import net.minecraft.world.item.CreativeModeTabs;
-import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -39,11 +37,11 @@ public class CommonEvents {
             CatalogCommand.register(event.getDispatcher());
         }
 
-        @SubscribeEvent
-        public static void onServerTick(TickEvent.ServerTickEvent event) {
-            if (event.phase == TickEvent.Phase.END) {
-                CatalogExposureSender.serverTick(event.getServer());
-            }
-        }
+//        @SubscribeEvent
+//        public static void onServerTick(TickEvent.ServerTickEvent event) {
+//            if (event.phase == TickEvent.Phase.END) {
+//                CatalogExposureSender.serverTick(event.getServer());
+//            }
+//        }
     }
 }

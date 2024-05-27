@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.ExposureServer;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
+import io.github.mortuusars.exposure_catalog.data.server.Catalog;
 import io.github.mortuusars.exposure_catalog.mixin.ServersideExposureStorageAccessor;
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
 import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
@@ -38,20 +39,10 @@ public record DeleteExposureC2SP(String exposureId) implements IPacket {
     @Override
     public boolean handle(PacketDirection direction, @Nullable Player player) {
         Preconditions.checkArgument(player instanceof ServerPlayer, "Player is required for " + ID + " packet");
-        Logger logger = LogUtils.getLogger();
 
         if (!player.hasPermissions(3))
             return true;
 
-        try {
-            Path path = ((ServersideExposureStorageAccessor) ExposureServer.getExposureStorage()).getWorldPathSupplier().get()
-                    .resolve("data/exposures/" + exposureId + ".dat");
-            if (Files.deleteIfExists(path))
-                logger.info(exposureId + " deleted.");
-            return true;
-        } catch (IOException e) {
-            logger.error("Deleting exposure failed: " + e);
-            return false;
-        }
+        return Catalog.deleteExposure(exposureId);
     }
 }

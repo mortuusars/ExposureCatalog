@@ -7,7 +7,7 @@ import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
 import io.github.mortuusars.exposure_catalog.network.packet.client.*;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposureC2SP;
-import io.github.mortuusars.exposure_catalog.network.packet.server.QueryAllExposuresC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.server.QueryExposuresC2SP;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
@@ -31,9 +31,9 @@ public class PacketsImpl {
         // BOTH
 
         // SERVER
-        CHANNEL.messageBuilder(QueryAllExposuresC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(QueryAllExposuresC2SP::toBuffer)
-                .decoder(QueryAllExposuresC2SP::fromBuffer)
+        CHANNEL.messageBuilder(QueryExposuresC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(QueryExposuresC2SP::toBuffer)
+                .decoder(QueryExposuresC2SP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
         CHANNEL.messageBuilder(DeleteExposureC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
@@ -54,9 +54,9 @@ public class PacketsImpl {
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
 
-        CHANNEL.messageBuilder(SendExposuresPartS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .encoder(SendExposuresPartS2CP::toBuffer)
-                .decoder(SendExposuresPartS2CP::fromBuffer)
+        CHANNEL.messageBuilder(SendExposuresDataPartS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(SendExposuresDataPartS2CP::toBuffer)
+                .decoder(SendExposuresDataPartS2CP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
 

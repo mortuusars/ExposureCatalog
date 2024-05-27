@@ -15,7 +15,7 @@ import java.util.function.Function;
 public class ClientPackets {
     public static void registerS2CPackets() {
         ClientPlayNetworking.registerGlobalReceiver(OpenCatalogS2CP.ID, new ClientHandler(OpenCatalogS2CP::fromBuffer));
-        ClientPlayNetworking.registerGlobalReceiver(SendExposuresPartS2CP.ID, new ClientHandler(SendExposuresPartS2CP::fromBuffer));
+        ClientPlayNetworking.registerGlobalReceiver(SendExposuresDataPartS2CP.ID, new ClientHandler(SendExposuresDataPartS2CP::fromBuffer));
         ClientPlayNetworking.registerGlobalReceiver(NotifySendingStartS2CP.ID, new ClientHandler(NotifySendingStartS2CP::fromBuffer));
         ClientPlayNetworking.registerGlobalReceiver(NotifyPartSentS2CP.ID, new ClientHandler(NotifyPartSentS2CP::fromBuffer));
         ClientPlayNetworking.registerGlobalReceiver(SendExposuresCountS2CP.ID, new ClientHandler(SendExposuresCountS2CP::fromBuffer));

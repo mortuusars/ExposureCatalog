@@ -5,7 +5,7 @@ import io.github.mortuusars.exposure_catalog.network.PacketDirection;
 import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposureC2SP;
-import io.github.mortuusars.exposure_catalog.network.packet.server.QueryAllExposuresC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.server.QueryExposuresC2SP;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -22,7 +22,7 @@ public class PacketsImpl {
     private static MinecraftServer server;
 
     public static void registerC2SPackets() {
-        ServerPlayNetworking.registerGlobalReceiver(QueryAllExposuresC2SP.ID, new ServerHandler(QueryAllExposuresC2SP::fromBuffer));
+        ServerPlayNetworking.registerGlobalReceiver(QueryExposuresC2SP.ID, new ServerHandler(QueryExposuresC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(DeleteExposureC2SP.ID, new ServerHandler(DeleteExposureC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(ExportExposureC2SP.ID, new ServerHandler(ExportExposureC2SP::fromBuffer));
     }
