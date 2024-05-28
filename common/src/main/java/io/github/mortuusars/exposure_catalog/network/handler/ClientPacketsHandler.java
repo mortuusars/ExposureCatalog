@@ -1,17 +1,15 @@
 package io.github.mortuusars.exposure_catalog.network.handler;
 
 import com.mojang.logging.LogUtils;
-import io.github.mortuusars.exposure_catalog.data.client.Receiver;
+import io.github.mortuusars.exposure_catalog.data.client.CatalogReceiver;
+import io.github.mortuusars.exposure_catalog.data.client.ClientCatalog;
 import io.github.mortuusars.exposure_catalog.gui.screen.CatalogScreen;
 import io.github.mortuusars.exposure_catalog.gui.screen.OverlayScreen;
 import io.github.mortuusars.exposure_catalog.network.packet.client.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.nbt.CompoundTag;
 import org.slf4j.Logger;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 public class ClientPacketsHandler {
@@ -27,38 +25,15 @@ public class ClientPacketsHandler {
         });
     }
 
-    private static List<CompoundTag> exposuresMetadata = new ArrayList<>();
-    private static int lastPart = -1;
-
     public static void receiveExposuresPart(SendExposuresDataPartS2CP packet) {
         executeOnMainThread(() -> {
-            Receiver.receivePart(packet);
+            CatalogReceiver.receivePart(packet.exposures(), packet.partIndex(), packet.isLastPart());
+        });
+    }
 
-            if (packet.isLastPart()) {
-                getCatalogScreen().ifPresent(catalogScreen -> catalogScreen.onExposuresReceived());
-            }
-//            if (packet.partIndex() == 0) {
-//                exposuresMetadata = new ArrayList<>();
-//                lastPart = 0;
-//            } else if (packet.partIndex() < lastPart) {
-//                LOGGER.warn("Incorrect order of exposures metadata parts detected. Exposures might not populate correctly.");
-//            }
-//
-//            exposuresMetadata.addAll(packet.exposuresMetadataList());
-//            lastPart = packet.partIndex();
-//
-//            if (packet.isLastPart()) {
-//                Screen openedScreen = Minecraft.getInstance().screen instanceof OverlayScreen overlayScreen ?
-//                        overlayScreen.getParent() : Minecraft.getInstance().screen;
-//
-//                if (openedScreen instanceof CatalogScreen catalogScreen) {
-//                    catalogScreen.setExposures(exposuresMetadata);
-//                } else {
-//                    LOGGER.warn("Catalog Screen is not opened. Received exposures would be discarded.");
-//                    exposuresMetadata = new ArrayList<>();
-//                    lastPart = -1;
-//                }
-//            }
+    public static void receiveExposureThumbnail(SendExposureThumbnailS2CP packet) {
+        executeOnMainThread(() -> {
+            ClientCatalog.setThumbnail(packet.exposureId(), packet.thumbnail());
         });
     }
 

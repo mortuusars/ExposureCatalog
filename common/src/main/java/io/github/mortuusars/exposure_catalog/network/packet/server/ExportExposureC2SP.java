@@ -50,6 +50,8 @@ public record ExportExposureC2SP(String exposureId, ExposureSize size, ExposureL
         if (!player.hasPermissions(3))
             return true;
 
+        //TODO: test for timeouts
+
         new Thread(() -> {
             try {
                 File folder = Objects.requireNonNull(player.level().getServer())

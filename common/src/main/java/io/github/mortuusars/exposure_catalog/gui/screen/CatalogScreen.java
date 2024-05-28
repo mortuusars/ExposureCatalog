@@ -21,7 +21,7 @@ import io.github.mortuusars.exposure.render.modifiers.ExposurePixelModifiers;
 import io.github.mortuusars.exposure.util.ItemAndStack;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
-import io.github.mortuusars.exposure_catalog.data.client.ClientExposuresCache;
+import io.github.mortuusars.exposure_catalog.data.client.ClientCatalog;
 import io.github.mortuusars.exposure_catalog.gui.screen.tooltip.BelowOrAboveAreaTooltipPositioner;
 import io.github.mortuusars.exposure_catalog.network.Packets;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
@@ -73,6 +73,7 @@ public class CatalogScreen extends Screen {
                     && mouseY >= area.getY() && mouseY < area.getY() + area.getHeight();
         }
     }
+
     public enum Mode implements StringRepresentable {
         EXPOSURES("exposures"), TEXTURES("textures");
 
@@ -205,9 +206,9 @@ public class CatalogScreen extends Screen {
         loadState();
     }
 
-    public void onExposuresReceived() {
+    public void onExposuresReceived(Map<String, ExposureInfo> exposuresList) {
         isExposuresLoading = false;
-        this.exposures = new ArrayList<>(ClientExposuresCache.getExposures().keySet().stream().toList());
+        this.exposures = new ArrayList<>(exposuresList.keySet().stream().toList());
         orderAndSortExposuresList(this.order, this.sorting);
 
         if (mode == Mode.EXPOSURES) {
@@ -215,64 +216,6 @@ public class CatalogScreen extends Screen {
             refreshSearchResults();
         }
     }
-
-//    public void onTotalCountReceived(int count) {
-//        this.totalExposuresCount = count;
-//        this.pagesCount = Mth.ceil(count / (float) ExposureCatalog.EXPOSURES_PER_PAGE);
-//
-//        if (pagesCount == 0) {
-//            Minecraft.getInstance().player.displayClientMessage(Component.literal("No exposures."), false);
-//            return;
-//        }
-//
-//        Packets.sendToServer(new QueryExposuresC2SP(0));
-//    }
-
-//    public void onReceivingStartNotification(int page, List<String> exposureIds) {
-//        pages.put(page, new ArrayList<>());
-//        exposureIds.clear();
-//        isExposuresLoading = true;
-//    }
-
-//    public void onPartSent(int page, List<String> ids, int allCount) {
-//        if (ids.isEmpty() && allCount == -1) { // All received
-//            isExposuresLoading = false;
-//            orderAndSortExposuresList(this.order, this.sorting);
-//
-//            LogUtils.getLogger().info("Finished receiving.");
-//        } else {
-//            pages.computeIfAbsent(page, k -> new ArrayList<>());
-//
-//            ArrayList<String> list = pages.get(page);
-//            list.addAll(ids);
-//            this.exposures = list;
-//            orderAndSortExposuresList(this.order, this.sorting);
-//            if (mode == Mode.EXPOSURES) {
-//                this.topRowIndex = 0;
-//                refreshSearchResults();
-//            }
-//            LogUtils.getLogger().info("Part received. " + exposures.size());
-//        }
-//    }
-
-//    public void setExposures(@NotNull List<CompoundTag> exposuresMetadataList) {
-//        exposures.clear();
-//
-//        for (CompoundTag tag : exposuresMetadataList) {
-//            String exposureId = tag.getString("Id");
-//            exposures.put(exposureId, tag);
-//        }
-//
-//        exposureIds = new ArrayList<>(exposures.keySet());
-//        orderAndSortExposuresList(this.order, this.sorting);
-//
-//        if (mode == Mode.EXPOSURES) {
-//            this.topRowIndex = 0;
-//            refreshSearchResults();
-//        }
-//
-//        isExposuresLoading = false;
-//    }
 
     @Override
     protected void init() {
@@ -408,6 +351,7 @@ public class CatalogScreen extends Screen {
         if (!initialized) {
             ExposureClient.getExposureStorage().clear();
             Packets.sendToServer(new QueryExposuresC2SP(false));
+            isExposuresLoading = true;
             initialized = true;
         }
 
@@ -473,6 +417,8 @@ public class CatalogScreen extends Screen {
             ExposureClient.getExposureStorage().clear();
             boolean reload = Screen.hasShiftDown();
             Packets.sendToServer(new QueryExposuresC2SP(reload));
+            if (reload)
+                isExposuresLoading = true;
             refreshCooldownExpireTime = Util.getMillis() + (reload ? RELOAD_COOLDOWN_MS : REFRESH_COOLDOWN_MS);
         } else if (mode == Mode.TEXTURES) {
             Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
@@ -596,8 +542,6 @@ public class CatalogScreen extends Screen {
     }
 
     protected void orderAndSortExposuresList(Order order, Sorting sorting) {
-        exposures = new ArrayList<>(ClientExposuresCache.getExposures().keySet().stream().toList());
-
         exposures.sort(Comparator.naturalOrder());
 
         if (sorting == Sorting.DATE) {
@@ -608,7 +552,7 @@ public class CatalogScreen extends Screen {
                 }
 
                 private long getTimestamp(String exposureId) {
-                    @Nullable ExposureInfo exposureData = ClientExposuresCache.getExposures().get(exposureId);
+                    @Nullable ExposureInfo exposureData = ClientCatalog.getExposures().get(exposureId);
                     return exposureData != null ? exposureData.getTimestampUnixSeconds() : 0L;
                 }
             };
@@ -826,15 +770,13 @@ public class CatalogScreen extends Screen {
         guiGraphics.drawString(font, title, leftPos + 8, topPos + 8, 0xFF414141, false);
 
         // Count
-        if (isExposuresLoading) {
+        if (isExposuresLoading && mode == Mode.EXPOSURES) {
             int dotAnimation = (int) (Util.getMillis() / 750 % 3) + 1;
             Component component = Component.translatable("gui.exposure_catalog.catalog.loading" + dotAnimation)
                     .withStyle(Style.EMPTY.withColor(0xFF414141));
             guiGraphics.drawString(font, component, leftPos + (imageWidth / 2) - (font.width(component) / 2),
                     topPos + 249, 0xFF414141, false);
-        }
-
-        if (!filteredItems.isEmpty() && !isExposuresLoading) {
+        } else if (!filteredItems.isEmpty()) {
             String filteredCountStr = Integer.toString(filteredItems.size());
 
             Component countComponent = Component.literal(filteredCountStr).withStyle(Style.EMPTY.withColor(0xFF414141));
@@ -1193,6 +1135,7 @@ public class CatalogScreen extends Screen {
 
         Collections.rotate(photographs, -clickedIndex);
 
+        //TODO: PhotographScreen queries all photographs when opened. We certainly don't want this when 15000 exposures is viewed.
         PhotographScreen screen = new AlbumPhotographScreen(this, photographs);
         Minecraft.getInstance().setScreen(screen);
         Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(

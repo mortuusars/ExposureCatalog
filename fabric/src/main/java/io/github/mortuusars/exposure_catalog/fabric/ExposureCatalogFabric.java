@@ -1,14 +1,12 @@
 package io.github.mortuusars.exposure_catalog.fabric;
 
 //import fuzs.forgeconfigapiport.api.config.v2.ForgeConfigRegistry;
-import io.github.mortuusars.exposure_catalog.data.server.CatalogExposureSender;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.command.CatalogCommand;
 import io.github.mortuusars.exposure_catalog.network.fabric.PacketsImpl;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
 //import net.minecraftforge.fml.config.ModConfig;
 

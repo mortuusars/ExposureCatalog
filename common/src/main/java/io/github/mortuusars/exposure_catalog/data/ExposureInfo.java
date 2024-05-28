@@ -1,21 +1,26 @@
 package io.github.mortuusars.exposure_catalog.data;
 
+import io.github.mortuusars.exposure.camera.infrastructure.FilmType;
 import net.minecraft.network.FriendlyByteBuf;
 
 public class ExposureInfo {
     protected String exposureId;
     protected int width, height;
+    private final FilmType type;
+    private final boolean wasPrinted;
     protected long timestampUnixSeconds;
 
-    public ExposureInfo(String exposureId, int width, int height, long timestampUnixSeconds) {
+    public ExposureInfo(String exposureId, int width, int height, FilmType type, boolean wasPrinted, long timestampUnixSeconds) {
         this.exposureId = exposureId;
         this.width = width;
         this.height = height;
+        this.type = type;
+        this.wasPrinted = wasPrinted;
         this.timestampUnixSeconds = timestampUnixSeconds;
     }
 
     public static ExposureInfo empty(String exposureId) {
-        return new ExposureInfo(exposureId, 0, 0, 0);
+        return new ExposureInfo(exposureId, 0, 0,  FilmType.COLOR, false, 0);
     }
 
     public boolean isEmpty() {
@@ -42,6 +47,8 @@ public class ExposureInfo {
         buffer.writeUtf(exposureId);
         buffer.writeInt(width);
         buffer.writeInt(height);
+        buffer.writeEnum(type);
+        buffer.writeBoolean(wasPrinted);
         buffer.writeLong(timestampUnixSeconds);
         return buffer;
     }
@@ -51,6 +58,8 @@ public class ExposureInfo {
                 buffer.readUtf(),
                 buffer.readInt(),
                 buffer.readInt(),
+                buffer.readEnum(FilmType.class),
+                buffer.readBoolean(),
                 buffer.readLong());
     }
 }

@@ -5,7 +5,7 @@ import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.ExposureServer;
 import io.github.mortuusars.exposure.data.storage.ExposureSavedData;
 import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
-import io.github.mortuusars.exposure_catalog.data.Thumbnail;
+import io.github.mortuusars.exposure_catalog.data.ExposureThumbnail;
 import io.github.mortuusars.exposure_catalog.mixin.ServersideExposureStorageAccessor;
 import net.minecraft.SharedConstants;
 import net.minecraft.Util;
@@ -19,30 +19,27 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ExposuresCache {
-    public static ExposuresCache INSTANCE = new ExposuresCache();
+public class CatalogCache {
     protected Logger LOGGER = LogUtils.getLogger();
-
-    private ExposuresCache() {
-    }
 
     protected File exposuresFolder;
 
     protected AtomicBoolean isBuilding = new AtomicBoolean(false);
     protected ConcurrentMap<String, ExposureInfo> exposures = new ConcurrentHashMap<>();
-    protected ConcurrentMap<String, Thumbnail> thumbnails = new ConcurrentHashMap<>();
+    protected ConcurrentMap<String, ExposureThumbnail> thumbnails = new ConcurrentHashMap<>();
     protected List<Runnable> callbacks = Collections.synchronizedList(new ArrayList<>());
 
-    public boolean isCurrentlyBuilding() {
-        return isBuilding.get();
-    }
-
-    public Map<String, ExposureInfo> getExposuresInfo() {
+    public Map<String, ExposureInfo> getExposures() {
         return exposures;
     }
 
-    public Map<String, Thumbnail> getThumbnails() {
+    public Map<String, ExposureThumbnail> getThumbnails() {
         return thumbnails;
+    }
+
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
+    public boolean isCurrentlyBuilding() {
+        return isBuilding.get();
     }
 
     public synchronized void buildIfNeeded(Runnable onFinished) {
@@ -61,6 +58,23 @@ public class ExposuresCache {
     public synchronized void rebuild(Runnable onFinished) {
         callbacks.add(onFinished);
         rebuildCache();
+    }
+
+    public void addExposure(String exposureId, ExposureSavedData data) {
+        ExposureInfo exposureData = createExposureData(exposureId, data);
+        exposures.put(exposureId, exposureData);
+        ExposureThumbnail thumbnail = createThumbnail(data, getThumbnailSize());
+        thumbnails.put(exposureId, thumbnail);
+    }
+
+    public void removeExposure(String exposureId) {
+        exposures.remove(exposureId);
+        thumbnails.remove(exposureId);
+    }
+
+    public void clear() {
+        exposures.clear();
+        thumbnails.clear();
     }
 
     protected synchronized void rebuildCache() {
@@ -92,9 +106,8 @@ public class ExposuresCache {
         List<Thread> threads = new ArrayList<>();
 
         for (List<String> chunk : chunks) {
-            Thread thread = new Thread(() -> {
-                processExposures(chunk);
-            });
+            Thread thread = new Thread(() ->
+                    processExposures(chunk));
             threads.add(thread);
             thread.start();
         }
@@ -107,7 +120,7 @@ public class ExposuresCache {
             }
         }
 
-        LOGGER.info("{} exposures loaded in {}ms.",  exposureIds.size(), Util.getMillis() - start);
+        LOGGER.info("{} exposures loaded in {}ms.", exposureIds.size(), Util.getMillis() - start);
 
         isBuilding.set(false);
 
@@ -115,11 +128,6 @@ public class ExposuresCache {
             callback.run();
         }
         callbacks.clear();
-    }
-
-    public void clear() {
-        exposures.clear();
-        thumbnails.clear();
     }
 
     protected void processExposures(List<String> exposureIds) {
@@ -132,7 +140,7 @@ public class ExposuresCache {
             ExposureInfo exposureData = createExposureData(exposureId, savedData);
             exposures.put(exposureId, exposureData);
 
-            Thumbnail thumbnail = createThumbnail(savedData, getThumbnailSize());
+            ExposureThumbnail thumbnail = createThumbnail(savedData, getThumbnailSize());
             thumbnails.put(exposureId, thumbnail);
         }
     }
@@ -164,9 +172,9 @@ public class ExposuresCache {
         return new File(exposuresFolder, name + ".dat");
     }
 
-    protected Thumbnail createThumbnail(@Nullable ExposureSavedData exposure, int size) {
+    protected ExposureThumbnail createThumbnail(@Nullable ExposureSavedData exposure, int size) {
         if (exposure == null)
-            return new Thumbnail(1, 1, new byte[]{0});
+            return new ExposureThumbnail(1, 1, new byte[]{0});
 
         float scaleFactorX = size / (float) exposure.getWidth();
         float scaleFactorY = size / (float) exposure.getHeight();
@@ -182,7 +190,7 @@ public class ExposuresCache {
             }
         }
 
-        return new Thumbnail(size, size, pixels);
+        return new ExposureThumbnail(size, size, pixels);
     }
 
     protected ExposureInfo createExposureData(String exposureId, @Nullable ExposureSavedData savedData) {
@@ -192,18 +200,8 @@ public class ExposuresCache {
         return new ExposureInfo(exposureId,
                 savedData.getWidth(),
                 savedData.getHeight(),
+                savedData.getType(),
+                savedData.getProperties().getBoolean(ExposureSavedData.WAS_PRINTED_PROPERTY),
                 savedData.getProperties().getLong(ExposureSavedData.TIMESTAMP_PROPERTY));
-    }
-
-    public void addExposure(String exposureId, ExposureSavedData data) {
-        ExposureInfo exposureData = createExposureData(exposureId, data);
-        exposures.put(exposureId, exposureData);
-        Thumbnail thumbnail = createThumbnail(data, getThumbnailSize());
-        thumbnails.put(exposureId, thumbnail);
-    }
-
-    public void removeExposure(String exposureId) {
-        exposures.remove(exposureId);
-        thumbnails.remove(exposureId);
     }
 }

@@ -1,11 +1,9 @@
 package io.github.mortuusars.exposure_catalog.forge.event;
 
-import io.github.mortuusars.exposure_catalog.data.server.CatalogExposureSender;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.command.CatalogCommand;
 import io.github.mortuusars.exposure_catalog.network.forge.PacketsImpl;
 import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 

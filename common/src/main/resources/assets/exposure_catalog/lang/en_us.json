@@ -6,6 +6,8 @@
   "gui.exposure_catalog.catalog.confirm.message.delete_many": "Are you sure you want to permanently delete %s exposures?",
   "gui.exposure_catalog.catalog.confirm.message.delete_one": "Are you sure you want to permanently delete %s?",
   "gui.exposure_catalog.catalog.delete": "Delete §8[Del]",
+  "gui.exposure_catalog.catalog.exposure_deleted": "Deleted '%s'",
+  "gui.exposure_catalog.catalog.exposure_delete_failed": "Failed to delete '%s'",
   "gui.exposure_catalog.catalog.delete.tooltip": "§8Hold [§7Shift§8] to delete without confirmation",
   "gui.exposure_catalog.catalog.export": "Export §8[Ctrl+E]",
   "gui.exposure_catalog.catalog.export.all": "Export All §8[Ctrl+E]",
