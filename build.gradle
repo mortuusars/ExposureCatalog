@@ -26,10 +26,6 @@ subprojects {
             officialMojangMappings()
             parchment("org.parchmentmc.data:parchment-${parchment_version}@zip")
         }
-
-//        modCompileOnlyApi("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}")
-//        modCompileOnlyApi("curse.maven:jade-324717:${jade_forge_id}")
-//        modCompileOnly "dev.emi:emi-xplat-intermediary:${emi_version}:api"
     }
 }
 
@@ -80,7 +76,6 @@ allprojects {
         maven {
             url "https://maven.shedaniel.me"
         } // REI
-
         maven {
             // Shedaniel's maven (Architectury API)
             url = "https://maven.architectury.dev"
@@ -88,7 +83,6 @@ allprojects {
                 includeGroup "dev.architectury"
             }
         }
-
         maven {
             // saps.dev Maven (KubeJS and Rhino)
             url = "https://maven.saps.dev/releases"
@@ -96,16 +90,18 @@ allprojects {
                 includeGroup "dev.latvian.mods"
             }
         }
-
         // EMI
         maven {
             name = "TerraformersMC"
             url = "https://maven.terraformersmc.com/"
         }
+        maven {
+            name = "Mortuusars Mod Resources"
+            url = "https://raw.githubusercontent.com/mortuusars/pages/main/modresources/maven/repository/"
+        }
     }
 
     dependencies {
-
     }
 
     tasks.withType(JavaCompile) {

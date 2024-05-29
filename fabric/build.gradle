@@ -51,30 +51,13 @@ dependencies {
     modApi "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
     // ExposureCatalog does not depend on the Architectury API:
     // modApi "dev.architectury:architectury-fabric:${rootProject.architectury_version}"
-
     modImplementation("net.fabricmc.fabric-api:fabric-api:${fabric_api_version}")
-    modImplementation("curse.maven:exposure-871755:${exposure_fabric_id}")
+    modImplementation("io.github.mortuusars:exposure-fabric:${exposure_version}")
 
+    // forgeconfigapiport is needed for Exposure to run:
     modRuntimeOnly "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forge_config_api_version}"
 
-//    modCompileOnlyApi("dev.latvian.mods:kubejs-fabric:${kubejs_version}")
-//    modRuntimeOnly("dev.latvian.mods:kubejs-fabric:${kubejs_version}")
-//    modRuntimeOnly("curse.maven:probejs-585406:${probejs_fabric_id}")
-//
-//    modCompileOnlyApi("curse.maven:jade-324717:${jade_fabric_id}")
-//    modRuntimeOnly("curse.maven:jade-324717:${jade_fabric_id}") { transitive = false }
-//
-//    modCompileOnlyApi("mezz.jei:jei-${minecraft_version}-fabric-api:${jei_version}")
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-fabric:${jei_version}")
-
-    // modRuntimeOnly("dev.emi:emi-fabric:${emi_version}")
-
-    // Create
-//    modCompileOnly("com.simibubi.create:create-fabric-${minecraft_version}:${create_fabric_version}")
-    // modRuntimeOnly("com.simibubi.create:create-fabric-${minecraft_version}:${create_fabric_version}")
-
-    // C2ME
-    // modImplementation("maven.modrinth:VSNURh3q:0.2.0+alpha.11.0+1.20.1")
 
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
     shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }

@@ -7,10 +7,10 @@ loom {
 }
 
 repositories {
-//    maven {
-//        name = "Fuzs Mod Resources"
-//        url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/"
-//    }
+    maven {
+        name = "Fuzs Mod Resources"
+        url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/"
+    }
 }
 
 dependencies {
@@ -19,20 +19,8 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
     // Remove the next line if you don't want to depend on the API
     // modApi "dev.architectury:architectury:${rootProject.architectury_version}"
-
-    modCompileOnly("curse.maven:exposure-871755:${exposure_id}")
-
-//    modCompileOnlyApi("mezz.jei:jei-${minecraft_version}-common-api:${jei_version}")
-
-//    modCompileOnlyApi "dev.latvian.mods:kubejs:${kubejs_version}"
-
-//    modCompileOnly("me.shedaniel.cloth:cloth-config-fabric:${cloth_config_version}") {
-//        exclude group: 'net.fabricmc.fabric-api'
-//    }
-
     modCompileOnly("curse.maven:architectury-${architectury_cf_version}")
-
-//    api "fuzs.forgeconfigapiport:forgeconfigapiport-common:${forge_config_api_version}"
+    modCompileOnly("io.github.mortuusars:exposure:${exposure_version}")
 }
 
 publishing {
