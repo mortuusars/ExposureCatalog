@@ -57,6 +57,8 @@ public class CatalogCache {
 
     public synchronized void rebuild(Runnable onFinished) {
         callbacks.add(onFinished);
+        exposures.clear();
+        thumbnails.clear();
         rebuildCache();
     }
 

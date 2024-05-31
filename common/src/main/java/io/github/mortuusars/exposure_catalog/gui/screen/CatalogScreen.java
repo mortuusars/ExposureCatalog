@@ -21,7 +21,8 @@ import io.github.mortuusars.exposure.render.modifiers.ExposurePixelModifiers;
 import io.github.mortuusars.exposure.util.ItemAndStack;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
-import io.github.mortuusars.exposure_catalog.data.client.ClientCatalog;
+import io.github.mortuusars.exposure_catalog.data.ExposureThumbnail;
+import io.github.mortuusars.exposure_catalog.data.client.CatalogClient;
 import io.github.mortuusars.exposure_catalog.gui.screen.tooltip.BelowOrAboveAreaTooltipPositioner;
 import io.github.mortuusars.exposure_catalog.network.Packets;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
@@ -78,6 +79,7 @@ public class CatalogScreen extends Screen {
         EXPOSURES("exposures"), TEXTURES("textures");
 
         private final String name;
+
         Mode(String name) {
             this.name = name;
         }
@@ -96,10 +98,12 @@ public class CatalogScreen extends Screen {
         }
 
     }
+
     public enum Order implements StringRepresentable {
         ASCENDING("ascending"), DESCENDING("descending");
 
         private final String name;
+
         Order(String name) {
             this.name = name;
         }
@@ -118,10 +122,12 @@ public class CatalogScreen extends Screen {
         }
 
     }
+
     public enum Sorting implements StringRepresentable {
         ALPHABETICAL("alphabetical"), DATE("date");
 
         private final String name;
+
         Sorting(String name) {
             this.name = name;
         }
@@ -140,6 +146,7 @@ public class CatalogScreen extends Screen {
         }
 
     }
+
     public static final ResourceLocation TEXTURE = ExposureCatalog.resource("textures/gui/catalog.png");
 
     public static final int ROWS = 4;
@@ -200,6 +207,7 @@ public class CatalogScreen extends Screen {
     protected boolean initialized;
 
     protected long refreshCooldownExpireTime = 0;
+    protected long lastScrolledTime = 0;
 
     public CatalogScreen() {
         super(Component.translatable("gui.exposure_catalog.catalog"));
@@ -417,8 +425,10 @@ public class CatalogScreen extends Screen {
             ExposureClient.getExposureStorage().clear();
             boolean reload = Screen.hasShiftDown();
             Packets.sendToServer(new QueryExposuresC2SP(reload));
-            if (reload)
+            if (reload) {
                 isExposuresLoading = true;
+                CatalogClient.clear();
+            }
             refreshCooldownExpireTime = Util.getMillis() + (reload ? RELOAD_COOLDOWN_MS : REFRESH_COOLDOWN_MS);
         } else if (mode == Mode.TEXTURES) {
             Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
@@ -552,7 +562,7 @@ public class CatalogScreen extends Screen {
                 }
 
                 private long getTimestamp(String exposureId) {
-                    @Nullable ExposureInfo exposureData = ClientCatalog.getExposures().get(exposureId);
+                    @Nullable ExposureInfo exposureData = CatalogClient.getExposures().get(exposureId);
                     return exposureData != null ? exposureData.getTimestampUnixSeconds() : 0L;
                 }
             };
@@ -654,10 +664,23 @@ public class CatalogScreen extends Screen {
 
     protected void renderThumbnailsGrid(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         for (Thumbnail thumbnail : thumbnails) {
+
             MultiBufferSource.BufferSource bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
-            ExposureClient.getExposureRenderer().render(thumbnail.idOrTexture(), ExposurePixelModifiers.EMPTY,
-                    guiGraphics.pose(), bufferSource, thumbnail.area().getX(), thumbnail.area().getY(),
-                    thumbnail.area().getWidth(), thumbnail.area().getHeight());
+
+            if (Minecraft.getInstance().isSingleplayer()) { // Loading full size images is ok in singleplayer
+                ExposureClient.getExposureRenderer().render(thumbnail.idOrTexture(), ExposurePixelModifiers.EMPTY,
+                        guiGraphics.pose(), bufferSource, thumbnail.area().getX(), thumbnail.area().getY(),
+                        thumbnail.area().getWidth(), thumbnail.area().getHeight());
+            } else {
+                thumbnail.idOrTexture
+                        .ifLeft(exposureId ->
+                                renderExposureThumbnail(guiGraphics, bufferSource, exposureId, thumbnail.area()))
+                        .ifRight(texture ->
+                                ExposureClient.getExposureRenderer().render(thumbnail.idOrTexture(), ExposurePixelModifiers.EMPTY,
+                                        guiGraphics.pose(), bufferSource, thumbnail.area().getX(), thumbnail.area().getY(),
+                                        thumbnail.area().getWidth(), thumbnail.area().getHeight()));
+            }
+
             bufferSource.endBatch();
 
             int frameVOffset = thumbnail.selected() ? 108 :
@@ -669,6 +692,19 @@ public class CatalogScreen extends Screen {
                     54, 54, 512, 512);
             RenderSystem.disableBlend();
         }
+    }
+
+    protected void renderExposureThumbnail(GuiGraphics guiGraphics, MultiBufferSource bufferSource, String exposureId, Rect2i area) {
+        @Nullable ExposureThumbnail thumbnail;
+        if (Util.getMillis() - lastScrolledTime < 250)
+            thumbnail = CatalogClient.getThumbnail(exposureId).orElse(null);
+        else
+            thumbnail = CatalogClient.getOrQueryThumbnail(exposureId).orElse(null);
+
+        if (thumbnail == null) return;
+
+        CatalogClient.getThumbnailRenderer().render(exposureId, thumbnail, ExposurePixelModifiers.EMPTY,
+                guiGraphics.pose(), bufferSource, area.getX(), area.getY(), area.getWidth(), area.getHeight());
     }
 
     protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -1105,6 +1141,7 @@ public class CatalogScreen extends Screen {
         topRowIndex = Mth.clamp(row, 0, maxRowWhenAtEnd);
         updateScrollThumb();
         updateThumbnailsGrid();
+        lastScrolledTime = Util.getMillis();
     }
 
     protected void updateScrollThumb() {

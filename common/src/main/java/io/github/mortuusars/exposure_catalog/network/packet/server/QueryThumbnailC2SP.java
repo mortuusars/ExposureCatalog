@@ -5,7 +5,9 @@ import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.data.ExposureThumbnail;
 import io.github.mortuusars.exposure_catalog.data.server.Catalog;
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
+import io.github.mortuusars.exposure_catalog.network.Packets;
 import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
+import io.github.mortuusars.exposure_catalog.network.packet.client.SendExposureThumbnailS2CP;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -35,10 +37,12 @@ public record QueryThumbnailC2SP(String exposureId) implements IPacket {
         Preconditions.checkArgument(player instanceof ServerPlayer, "Player is required for " + ID + " packet");
         ServerPlayer serverPlayer = (ServerPlayer) player;
 
-        serverPlayer.server.execute(() -> {
+//        serverPlayer.server.execute(() -> {
             @Nullable ExposureThumbnail thumbnail = Catalog.getCache().getThumbnails().get(exposureId);
-
-        });
+            if (thumbnail != null) {
+                Packets.sendToClient(new SendExposureThumbnailS2CP(exposureId, thumbnail), serverPlayer);
+            }
+//        });
 
         return true;
     }

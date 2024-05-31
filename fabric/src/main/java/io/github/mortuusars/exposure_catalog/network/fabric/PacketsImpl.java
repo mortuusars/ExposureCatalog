@@ -6,6 +6,7 @@ import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposureC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.QueryExposuresC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.server.QueryThumbnailC2SP;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -25,6 +26,7 @@ public class PacketsImpl {
         ServerPlayNetworking.registerGlobalReceiver(QueryExposuresC2SP.ID, new ServerHandler(QueryExposuresC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(DeleteExposureC2SP.ID, new ServerHandler(DeleteExposureC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(ExportExposureC2SP.ID, new ServerHandler(ExportExposureC2SP::fromBuffer));
+        ServerPlayNetworking.registerGlobalReceiver(QueryThumbnailC2SP.ID, new ServerHandler(QueryThumbnailC2SP::fromBuffer));
     }
 
     public static void registerS2CPackets() {

@@ -19,6 +19,7 @@ public class ClientPackets {
         ClientPlayNetworking.registerGlobalReceiver(NotifySendingStartS2CP.ID, new ClientHandler(NotifySendingStartS2CP::fromBuffer));
         ClientPlayNetworking.registerGlobalReceiver(NotifyPartSentS2CP.ID, new ClientHandler(NotifyPartSentS2CP::fromBuffer));
         ClientPlayNetworking.registerGlobalReceiver(SendExposuresCountS2CP.ID, new ClientHandler(SendExposuresCountS2CP::fromBuffer));
+        ClientPlayNetworking.registerGlobalReceiver(SendExposureThumbnailS2CP.ID, new ClientHandler(SendExposureThumbnailS2CP::fromBuffer));
     }
 
     public static void sendToServer(IPacket packet) {

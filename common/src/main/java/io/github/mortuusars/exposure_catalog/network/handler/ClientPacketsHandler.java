@@ -2,7 +2,7 @@ package io.github.mortuusars.exposure_catalog.network.handler;
 
 import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure_catalog.data.client.CatalogReceiver;
-import io.github.mortuusars.exposure_catalog.data.client.ClientCatalog;
+import io.github.mortuusars.exposure_catalog.data.client.CatalogClient;
 import io.github.mortuusars.exposure_catalog.gui.screen.CatalogScreen;
 import io.github.mortuusars.exposure_catalog.gui.screen.OverlayScreen;
 import io.github.mortuusars.exposure_catalog.network.packet.client.*;
@@ -33,7 +33,7 @@ public class ClientPacketsHandler {
 
     public static void receiveExposureThumbnail(SendExposureThumbnailS2CP packet) {
         executeOnMainThread(() -> {
-            ClientCatalog.setThumbnail(packet.exposureId(), packet.thumbnail());
+            CatalogClient.setThumbnail(packet.exposureId(), packet.thumbnail());
         });
     }
 
