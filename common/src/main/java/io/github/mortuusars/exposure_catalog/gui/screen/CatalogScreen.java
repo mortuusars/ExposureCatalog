@@ -23,7 +23,11 @@ import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
 import io.github.mortuusars.exposure_catalog.data.ExposureThumbnail;
 import io.github.mortuusars.exposure_catalog.data.client.CatalogClient;
+import io.github.mortuusars.exposure_catalog.gui.Mode;
+import io.github.mortuusars.exposure_catalog.gui.Order;
+import io.github.mortuusars.exposure_catalog.gui.Sorting;
 import io.github.mortuusars.exposure_catalog.gui.screen.tooltip.BelowOrAboveAreaTooltipPositioner;
+import io.github.mortuusars.exposure_catalog.gui.screen.widget.EnumButton;
 import io.github.mortuusars.exposure_catalog.network.Packets;
 import io.github.mortuusars.exposure_catalog.network.packet.server.CatalogClosedC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
@@ -37,11 +41,13 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.navigation.CommonInputs;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.searchtree.PlainTextSearchTree;
+import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
@@ -51,7 +57,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.util.Mth;
-import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -64,7 +69,15 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class CatalogScreen extends Screen {
+    public static final ResourceLocation TEXTURE = ExposureCatalog.resource("textures/gui/catalog.png");
     public static final int TEX_SIZE = 512;
+    public static final int ROWS = 4;
+    public static final int COLS = 6;
+
+    protected static final int SCROLL_THUMB_TOP_HEIGHT = 3;
+    protected static final int SCROLL_THUMB_MID_HEIGHT = 4;
+    protected static final int SCROLL_THUMB_BOT_HEIGHT = 2;
+
     public static final int REFRESH_COOLDOWN_MS = 500; // 0.5 seconds
     public static final int RELOAD_COOLDOWN_MS = 5000; // 5 seconds
 
@@ -76,117 +89,33 @@ public class CatalogScreen extends Screen {
         }
     }
 
-    public enum Mode implements StringRepresentable {
-        EXPOSURES("exposures"), TEXTURES("textures");
-
-        private final String name;
-
-        Mode(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public @NotNull String getSerializedName() {
-            return name;
-        }
-
-        public static Mode fromSerializedString(String str) {
-            for (Mode value : values()) {
-                if (value.getSerializedName().equals(str))
-                    return value;
-            }
-            throw new IllegalArgumentException(str + " cannot be deserialized to Mode");
-        }
-
-    }
-
-    public enum Order implements StringRepresentable {
-        ASCENDING("ascending"), DESCENDING("descending");
-
-        private final String name;
-
-        Order(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public @NotNull String getSerializedName() {
-            return name;
-        }
-
-        public static Order fromSerializedString(String str) {
-            for (Order value : values()) {
-                if (value.getSerializedName().equals(str))
-                    return value;
-            }
-            throw new IllegalArgumentException(str + " cannot be deserialized to Order");
-        }
-
-    }
-
-    public enum Sorting implements StringRepresentable {
-        ALPHABETICAL("alphabetical"), DATE("date");
-
-        private final String name;
-
-        Sorting(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public @NotNull String getSerializedName() {
-            return name;
-        }
-
-        public static Sorting fromSerializedString(String str) {
-            for (Sorting value : values()) {
-                if (value.getSerializedName().equals(str))
-                    return value;
-            }
-            throw new IllegalArgumentException(str + " cannot be deserialized to Sorting");
-        }
-
-    }
-
-    public static final ResourceLocation TEXTURE = ExposureCatalog.resource("textures/gui/catalog.png");
-
-    public static final int ROWS = 4;
-
-    public static final int COLS = 6;
     protected final File stateFile = new File(Minecraft.getInstance().gameDirectory, "exposure_catalog_state.json");
 
     protected int imageWidth;
-
     protected int imageHeight;
     protected int leftPos;
     protected int topPos;
     protected Rect2i windowArea = new Rect2i(0, 0, 361, 265);
     protected Rect2i scrollBarArea = new Rect2i(343, 22, 10, 221);
-    protected int scrollThumbTopHeight = 3;
-    protected int scrollThumbMidHeight = 4;
-    protected int scrollThumbBotHeight = 2;
     protected Rect2i searchBarArea = new Rect2i(219, 7, 118, 10);
     protected Rect2i thumbnailsArea = new Rect2i(8, 22, 329, 221);
-    protected EditBox searchBox;
 
-    protected Button exposuresModeButton;
-    protected Button texturesModeButton;
+    protected EnumButton<Order> orderButton;
+    protected EnumButton<Sorting> sortingButton;
+    protected EditBox searchBox;
+    protected EnumButton<Mode> modeButton;
     protected Rect2i scrollThumb = new Rect2i(0, 0, 0, 0);
     protected List<Thumbnail> thumbnails = Collections.synchronizedList(new ArrayList<>());
-    protected Button orderAscendingButton;
-    protected Button orderDescendingButton;
-    protected Button sortAZButton;
-    protected Button sortDateButton;
     protected Button refreshButton;
     protected Button exportButton;
     protected Button deleteButton;
-    protected Mode mode = Mode.EXPOSURES;
 
+    protected Mode mode = Mode.EXPOSURES;
     protected Order order = Order.ASCENDING;
     protected Sorting sorting = Sorting.DATE;
     protected ExposureSize exportSize = ExposureSize.X1;
-
     protected ExposureLook exportLook = ExposureLook.REGULAR;
+
     protected boolean isExposuresLoading;
 
     protected List<String> exposures = new ArrayList<>();
@@ -212,7 +141,6 @@ public class CatalogScreen extends Screen {
 
     public CatalogScreen() {
         super(Component.translatable("gui.exposure_catalog.catalog"));
-        loadState();
     }
 
     public void onExposuresReceived(Map<String, ExposureInfo> exposuresList) {
@@ -238,25 +166,47 @@ public class CatalogScreen extends Screen {
         searchBarArea = new Rect2i(leftPos + 219, topPos + 7, 118, 10);
         thumbnailsArea = new Rect2i(leftPos + 8, topPos + 22, 329, 221);
 
-        orderAscendingButton = new ImageButton(leftPos + 188, topPos + 6, 12, 12, 425, 0,
-                12, TEXTURE, 512, 512, b -> changeOrder(Order.ASCENDING));
-        orderAscendingButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.order.ascending")));
-        addRenderableWidget(orderAscendingButton);
+        orderButton = new EnumButton<>(Order.class, leftPos + 188, topPos + 6, 12, 12, 425, 0,
+                12, 12, TEXTURE, 512, 512, (b, prev, current) -> changeOrder(current),
+                Component.translatable("gui.exposure_catalog.catalog.order")) {
+            @Override
+            public void playDownSound(SoundManager handler) {
+                playClickSound();
+            }
+        };
+        orderButton.setTooltipFunc(value -> {
+            MutableComponent component = Component.translatable("gui.exposure_catalog.catalog.order");
 
-        orderDescendingButton = new ImageButton(leftPos + 188, topPos + 6, 12, 12, 425, 36,
-                12, TEXTURE, 512, 512, b -> changeOrder(Order.DESCENDING));
-        orderDescendingButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.order.descending")));
-        addRenderableWidget(orderDescendingButton);
+            for (Order v : Order.values()) {
+                component.append("\n ");
+                component.append(Component.translatable("gui.exposure_catalog.catalog.order." + v.getSerializedName())
+                        .withStyle(Style.EMPTY.withColor(value == v ? 0x6677FF : 0x444444)));
+            }
 
-        sortAZButton = new ImageButton(leftPos + 203, topPos + 6, 12, 12, 437, 0,
-                12, TEXTURE, 512, 512, b -> changeSorting(Sorting.ALPHABETICAL));
-        sortAZButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.sort.alphabetical")));
-        addRenderableWidget(sortAZButton);
+            return Tooltip.create(component);
+        });
+        addRenderableWidget(orderButton);
 
-        sortDateButton = new ImageButton(leftPos + 203, topPos + 6, 12, 12, 437, 36,
-                12, TEXTURE, 512, 512, b -> changeSorting(Sorting.DATE));
-        sortDateButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.sort.date")));
-        addRenderableWidget(sortDateButton);
+        sortingButton = new EnumButton<>(Sorting.class, leftPos + 203, topPos + 6, 12, 12, 425, 36,
+                12, 12, TEXTURE, 512, 512, (b, prev, current) -> changeSorting(current),
+                Component.translatable("gui.exposure_catalog.catalog.sorting")) {
+            @Override
+            public void playDownSound(SoundManager handler) {
+                playClickSound();
+            }
+        };
+        sortingButton.setTooltipFunc(value -> {
+            MutableComponent component = Component.translatable("gui.exposure_catalog.catalog.sorting");
+
+            for (Sorting v : Sorting.values()) {
+                component.append("\n ");
+                component.append(Component.translatable("gui.exposure_catalog.catalog.sorting." + v.getSerializedName())
+                        .withStyle(Style.EMPTY.withColor(value == v ? 0x6677FF : 0x444444)));
+            }
+
+            return Tooltip.create(component);
+        });
+        addRenderableWidget(sortingButton);
 
         searchBox = new EditBox(font, searchBarArea.getX() + 1, searchBarArea.getY() + 1, searchBarArea.getWidth(), font.lineHeight, Component.translatable("itemGroup.search"));
         searchBox.setMaxLength(50);
@@ -265,19 +215,34 @@ public class CatalogScreen extends Screen {
         searchBox.setTextColor(0xFFFFFF);
         addRenderableWidget(searchBox);
 
-        exposuresModeButton = new ImageButton(leftPos + 342, topPos + 6, 12, 12, 449, 0,
-                12, TEXTURE, 512, 512, b -> changeMode(Mode.EXPOSURES));
-        exposuresModeButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.mode.exposures")));
-        addRenderableWidget(exposuresModeButton);
+        modeButton = new EnumButton<>(Mode.class, leftPos + 342, topPos + 6, 12, 12,
+                449, 0, 12, 12, TEXTURE, 512, 512,
+                (b, prev, current) -> changeMode(current), Component.translatable("gui.exposure_catalog.catalog.mode")) {
+            @Override
+            public void playDownSound(SoundManager handler) {
+                playClickSound();
+            }
+        };
+        modeButton.setTooltipFunc(value -> {
+            MutableComponent component = Component.translatable("gui.exposure_catalog.catalog.mode")
+                    .append(" ")
+                    .append(Component.translatable("gui.exposure_catalog.catalog.mode.hotkey"));
 
-        texturesModeButton = new ImageButton(leftPos + 342, topPos + 6, 12, 12, 461, 0,
-                12, TEXTURE, 512, 512, b -> changeMode(Mode.TEXTURES));
-        texturesModeButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.mode.textures")));
-        addRenderableWidget(texturesModeButton);
+            for (Mode v : Mode.values()) {
+                component.append("\n ");
+                component.append(Component.translatable("gui.exposure_catalog.catalog.mode." + v.getSerializedName())
+                        .withStyle(Style.EMPTY.withColor(value == v ? 0x6677FF : 0x444444)));
+            }
+
+            return Tooltip.create(component);
+        });
+        addRenderableWidget(modeButton);
 
         refreshButton = new ImageButton(leftPos + 7, topPos + 247, 12, 12, 449, 36,
                 12, TEXTURE, 512, 512, b -> refresh());
         refreshButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.refresh")
+                .append(" ")
+                .append(Component.translatable("gui.exposure_catalog.catalog.refresh.hotkey"))
                 .append("\n")
                 .append(Component.translatable("gui.exposure_catalog.catalog.refresh.tooltip"))));
         addRenderableWidget(refreshButton);
@@ -293,7 +258,7 @@ public class CatalogScreen extends Screen {
 
             @Override
             public boolean mouseClicked(double mouseX, double mouseY, int button) {
-                if (!isHoveredOrFocused() || !this.active || !this.visible || button != InputConstants.MOUSE_BUTTON_RIGHT)
+                if (!isHoveredOrFocused() || !this.active || !this.visible)
                     return super.mouseClicked(mouseX, mouseY, button);
 
                 if (Screen.hasControlDown()) {
@@ -346,6 +311,26 @@ public class CatalogScreen extends Screen {
 
                 return super.mouseScrolled(mouseX, mouseY, delta);
             }
+
+            @Override
+            public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+                if (!isHoveredOrFocused() || !this.active || !this.visible)
+                    return super.keyPressed(keyCode, scanCode, modifiers);
+
+                if (CommonInputs.selected(keyCode) && Screen.hasControlDown()) {
+                    exportSize = ExposureSize.values()[(exportSize.ordinal() + 1) % ExposureSize.values().length];
+                    playClickSound();
+                    return true;
+                }
+
+                if (CommonInputs.selected(keyCode) && Screen.hasShiftDown()) {
+                    exportLook = ExposureLook.values()[(exportLook.ordinal() + 1) % ExposureLook.values().length];
+                    playClickSound();
+                    return true;
+                }
+
+                return super.keyPressed(keyCode, scanCode, modifiers);
+            }
         };
         exportButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.export")));
         addRenderableWidget(exportButton);
@@ -353,11 +338,14 @@ public class CatalogScreen extends Screen {
         deleteButton = new ImageButton(leftPos + 342, topPos + 247, 12, 12, 473, 0,
                 12, TEXTURE, 512, 512, b -> deleteExposures());
         deleteButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.delete")
+                .append(" ")
+                .append(Component.translatable("gui.exposure_catalog.catalog.delete.hotkey"))
                 .append("\n")
                 .append(Component.translatable("gui.exposure_catalog.catalog.delete.tooltip"))));
         addRenderableWidget(deleteButton);
 
         if (!initialized) {
+            loadState();
             ExposureClient.getExposureStorage().clear();
             Packets.sendToServer(new QueryExposuresC2SP(false));
             isExposuresLoading = true;
@@ -373,10 +361,10 @@ public class CatalogScreen extends Screen {
     }
 
     protected Component createExportButtonTooltip() {
-        MutableComponent tooltip = selectedIndexes.isEmpty() || selectedIndexes.size() == exposures.size() ?
-                Component.translatable("gui.exposure_catalog.catalog.export.all")
-                : Component.translatable("gui.exposure_catalog.catalog.export.selected");
-
+        MutableComponent tooltip = Component.translatable("gui.exposure_catalog.catalog.export." +
+                        (selectedIndexes.isEmpty() || selectedIndexes.size() == exposures.size() ? "all" : "selected"))
+                .append(" ")
+                .append(Component.translatable("gui.exposure_catalog.catalog.export.hotkey"));
 
         tooltip.append("\n");
         tooltip.append(Component.translatable("gui.exposure_catalog.catalog.export.location_info"));
@@ -388,7 +376,7 @@ public class CatalogScreen extends Screen {
         for (ExposureSize size : ExposureSize.values()) {
             tooltip.append("\n");
             tooltip.append(Component.translatable("gui.exposure_catalog.catalog.export.size." + size.getSerializedName())
-                    .withStyle(exportSize == size ? ChatFormatting.GOLD : ChatFormatting.GRAY));
+                    .withStyle(Style.EMPTY.withColor(exportSize == size ? 0x6677FF : 0x444444)));
         }
 
         tooltip.append("\n")
@@ -398,7 +386,7 @@ public class CatalogScreen extends Screen {
         for (ExposureLook look : ExposureLook.values()) {
             tooltip.append("\n")
                     .append(Component.translatable("gui.exposure_catalog.catalog.export.look." + look.getSerializedName())
-                            .withStyle(exportLook == look ? ChatFormatting.GOLD : ChatFormatting.GRAY));
+                            .withStyle(Style.EMPTY.withColor(exportLook == look ? 0x6677FF : 0x444444)));
         }
 
         tooltip.append("\n")
@@ -446,10 +434,20 @@ public class CatalogScreen extends Screen {
                 String exposureId = filteredItems.get(index);
                 Packets.sendToServer(new ExportExposureC2SP(exposureId, exportSize, exportLook));
             }
+        } else if (filteredItems.size() > 100) {
+            Component message = Component.translatable("gui.exposure_catalog.catalog.confirm.message.export_all", filteredItems.size());
+            Screen confirmScreen = new ConfirmScreen(this, message, CommonComponents.GUI_YES,
+                    b -> exportAllExposures(), CommonComponents.GUI_NO, b -> {
+            });
+            Minecraft.getInstance().setScreen(confirmScreen);
         } else {
-            for (String exposureId : filteredItems) {
-                Packets.sendToServer(new ExportExposureC2SP(exposureId, exportSize, exportLook));
-            }
+            exportAllExposures();
+        }
+    }
+
+    protected void exportAllExposures() {
+        for (String exposureId : filteredItems) {
+            Packets.sendToServer(new ExportExposureC2SP(exposureId, exportSize, exportLook));
         }
     }
 
@@ -497,19 +495,22 @@ public class CatalogScreen extends Screen {
         }
 
         selectedIndexes.clear();
+
+        if (isThumbnailsGridFocused) {
+            int globalIndex = focusedThumbnailIndex + (topRowIndex * COLS);
+            if (globalIndex >= 0 && globalIndex < filteredItems.size() - 1)
+                selectedIndexes.add(globalIndex);
+        }
+
         updateElements();
     }
 
     protected void updateButtons() {
-        orderAscendingButton.visible = order == Order.DESCENDING;
-        orderDescendingButton.visible = order == Order.ASCENDING;
+        orderButton.setState(order);
+        sortingButton.setState(sorting);
+        modeButton.setState(mode);
 
-        sortAZButton.visible = sorting == Sorting.DATE || mode == Mode.TEXTURES;
-        sortAZButton.active = mode != Mode.TEXTURES;
-        sortDateButton.visible = sorting == Sorting.ALPHABETICAL && mode == Mode.EXPOSURES;
-
-        exposuresModeButton.visible = mode == Mode.TEXTURES;
-        texturesModeButton.visible = mode == Mode.EXPOSURES;
+        sortingButton.active = mode == Mode.EXPOSURES;
 
         exportButton.active = mode == Mode.EXPOSURES;
         deleteButton.active = mode == Mode.EXPOSURES && !selectedIndexes.isEmpty();
@@ -639,6 +640,8 @@ public class CatalogScreen extends Screen {
                 thumbnails.add(thumbnail);
             }
         }
+
+        focusedThumbnailIndex = Mth.clamp(focusedThumbnailIndex, 0, thumbnails.size() - 1);
     }
 
     @Override
@@ -711,7 +714,7 @@ public class CatalogScreen extends Screen {
 
     protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         if (searchBox.isMouseOver(mouseX, mouseY)) {
-            guiGraphics.renderTooltip(font, Component.translatable("gui.exposure_catalog.searchbar.tooltip"), mouseX, mouseY);
+            guiGraphics.renderTooltip(font, Component.translatable("gui.exposure_catalog.searchbar.hotkey"), mouseX, mouseY);
             return;
         }
 
@@ -780,25 +783,25 @@ public class CatalogScreen extends Screen {
         else if (isDraggingScrollbar || isMouseOver(scrollThumb, mouseX, mouseY))
             state = 1;
 
-        int thumbStateOffset = scrollThumbTopHeight + scrollThumbMidHeight + scrollThumbBotHeight;
+        int thumbStateOffset = SCROLL_THUMB_TOP_HEIGHT + SCROLL_THUMB_MID_HEIGHT + SCROLL_THUMB_BOT_HEIGHT;
 
         // Top
         guiGraphics.blit(TEXTURE, scrollThumb.getX(), scrollThumb.getY(),
                 361, state * thumbStateOffset,
-                scrollThumb.getWidth(), scrollThumbTopHeight, 512, 512);
+                scrollThumb.getWidth(), SCROLL_THUMB_TOP_HEIGHT, 512, 512);
 
         // Middle
         int middleParts = (scrollThumb.getHeight() - 3 - 2) / 4;
         for (int i = 0; i < middleParts; i++) {
             guiGraphics.blit(TEXTURE, scrollThumb.getX(), scrollThumb.getY() + i * 4 + 3,
-                    361, scrollThumbTopHeight + state * thumbStateOffset,
-                    scrollThumb.getWidth(), scrollThumbMidHeight, 512, 512);
+                    361, SCROLL_THUMB_TOP_HEIGHT + state * thumbStateOffset,
+                    scrollThumb.getWidth(), SCROLL_THUMB_MID_HEIGHT, 512, 512);
         }
 
         // Bottom
         guiGraphics.blit(TEXTURE, scrollThumb.getX(), scrollThumb.getY() + (middleParts * 4) + 3,
-                361, scrollThumbTopHeight + scrollThumbMidHeight + state * thumbStateOffset,
-                scrollThumb.getWidth(), scrollThumbBotHeight, 512, 512);
+                361, SCROLL_THUMB_TOP_HEIGHT + SCROLL_THUMB_MID_HEIGHT + state * thumbStateOffset,
+                scrollThumb.getWidth(), SCROLL_THUMB_BOT_HEIGHT, 512, 512);
     }
 
     protected void renderLabels(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -948,16 +951,18 @@ public class CatalogScreen extends Screen {
 
         if (isThumbnailsGridFocused) {
             if (keyCode == InputConstants.KEY_RETURN) {
-                if (Screen.hasControlDown()) {
-                    if (selectedIndexes.contains(focusedThumbnailIndex))
-                        selectedIndexes.remove(Integer.valueOf(focusedThumbnailIndex));
-                    else {
-                        selectedIndexes.add(focusedThumbnailIndex);
-                        selectionStartIndex = focusedThumbnailIndex;
-                    }
-                    updateElements();
-                } else {
+                int focusedThumbnailGlobalIndex = focusedThumbnailIndex + (topRowIndex * COLS);
+                if (!Screen.hasControlDown()) {
                     openPhotographView(thumbnails.get(focusedThumbnailIndex).index());
+//                    if (selectedIndexes.contains(focusedThumbnailGlobalIndex))
+//                        selectedIndexes.remove(Integer.valueOf(focusedThumbnailGlobalIndex));
+//                    else {
+//                        selectedIndexes.add(focusedThumbnailGlobalIndex);
+//                        selectionStartIndex = focusedThumbnailGlobalIndex;
+//                    }
+//                    updateElements();
+//                } else {
+//                    openPhotographView(thumbnails.get(focusedThumbnailIndex).index());
                 }
                 return true;
             }
@@ -975,7 +980,7 @@ public class CatalogScreen extends Screen {
         }
 
         if (keyCode == InputConstants.KEY_TAB) {
-            if (!filteredItems.isEmpty() && !Screen.hasShiftDown() && (getFocused() == exposuresModeButton || getFocused() == texturesModeButton)) {
+            if (!filteredItems.isEmpty() && !Screen.hasShiftDown() && getFocused() == modeButton) {
                 setFocused(null);
                 isThumbnailsGridFocused = true;
                 focusedThumbnailIndex = 0;
@@ -996,9 +1001,7 @@ public class CatalogScreen extends Screen {
 
                 return true;
             } else if (isThumbnailsGridFocused) {
-                Button newFocusTarget = Screen.hasShiftDown() ?
-                        mode == Mode.EXPOSURES ? texturesModeButton : exposuresModeButton
-                        : refreshButton;
+                Button newFocusTarget = Screen.hasShiftDown() ? modeButton : refreshButton;
                 setFocused(newFocusTarget);
                 isThumbnailsGridFocused = false;
 
@@ -1011,34 +1014,38 @@ public class CatalogScreen extends Screen {
             }
         }
 
-        if (isThumbnailsGridFocused && !filteredItems.isEmpty() && List.of(InputConstants.KEY_LEFT, InputConstants.KEY_RIGHT,
+        if (!filteredItems.isEmpty() && List.of(InputConstants.KEY_LEFT, InputConstants.KEY_RIGHT,
                 InputConstants.KEY_UP, InputConstants.KEY_DOWN).contains(keyCode)) {
-            if (keyCode == InputConstants.KEY_LEFT) {
-                int newIndex = focusedThumbnailIndex - 1;
-                if (newIndex < 0 && topRowIndex > 0) {
-                    scroll(-1);
-                    focusedThumbnailIndex = COLS - 1;
-                } else
-                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-            } else if (keyCode == InputConstants.KEY_RIGHT) {
-                int newIndex = focusedThumbnailIndex + 1;
-                if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
-                    scroll(1);
-                    focusedThumbnailIndex = ROWS * COLS - COLS;
-                } else
-                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-            } else if (keyCode == InputConstants.KEY_UP) {
-                int newIndex = focusedThumbnailIndex - COLS;
-                if (newIndex < 0 && topRowIndex > 0) {
-                    scroll(-1);
-                } else
-                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-            } else if (keyCode == InputConstants.KEY_DOWN) {
-                int newIndex = focusedThumbnailIndex + COLS;
-                if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
-                    scroll(1);
-                } else
-                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+            if (!isThumbnailsGridFocused) {
+                isThumbnailsGridFocused = true;
+            } else {
+                if (keyCode == InputConstants.KEY_LEFT) {
+                    int newIndex = focusedThumbnailIndex - 1;
+                    if (newIndex < 0 && topRowIndex > 0) {
+                        scroll(-1);
+                        focusedThumbnailIndex = COLS - 1;
+                    } else
+                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+                } else if (keyCode == InputConstants.KEY_RIGHT) {
+                    int newIndex = focusedThumbnailIndex + 1;
+                    if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
+                        scroll(1);
+                        focusedThumbnailIndex = ROWS * COLS - COLS;
+                    } else
+                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+                } else if (keyCode == InputConstants.KEY_UP) {
+                    int newIndex = focusedThumbnailIndex - COLS;
+                    if (newIndex < 0 && topRowIndex > 0) {
+                        scroll(-1);
+                    } else
+                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+                } else if (keyCode == InputConstants.KEY_DOWN) {
+                    int newIndex = focusedThumbnailIndex + COLS;
+                    if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
+                        scroll(1);
+                    } else
+                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+                }
             }
 
             selectedIndexes.clear();
@@ -1147,13 +1154,13 @@ public class CatalogScreen extends Screen {
     }
 
     protected void updateScrollThumb() {
-        int minSize = scrollThumbTopHeight + scrollThumbMidHeight + scrollThumbBotHeight;
+        int minSize = SCROLL_THUMB_TOP_HEIGHT + SCROLL_THUMB_MID_HEIGHT + SCROLL_THUMB_BOT_HEIGHT;
 
         float ratio = ROWS / (float) Math.max(totalRows, 1);
         int size = Mth.clamp(Mth.ceil(scrollBarArea.getHeight() * ratio), minSize, scrollBarArea.getHeight());
-        int midSize = size - scrollThumbTopHeight - scrollThumbBotHeight;
-        int correctedMidSize = Math.max(midSize - (midSize % scrollThumbMidHeight), scrollThumbMidHeight);
-        size = scrollThumbTopHeight + correctedMidSize + scrollThumbBotHeight;
+        int midSize = size - SCROLL_THUMB_TOP_HEIGHT - SCROLL_THUMB_BOT_HEIGHT;
+        int correctedMidSize = Math.max(midSize - (midSize % SCROLL_THUMB_MID_HEIGHT), SCROLL_THUMB_MID_HEIGHT);
+        size = SCROLL_THUMB_TOP_HEIGHT + correctedMidSize + SCROLL_THUMB_BOT_HEIGHT;
 
         float topRowPos = (float) topRowIndex / Math.max(1, totalRows - ROWS);
         int pos = (int) Mth.map(topRowPos, 0f, 1f, 0f, scrollBarArea.getHeight() - size);

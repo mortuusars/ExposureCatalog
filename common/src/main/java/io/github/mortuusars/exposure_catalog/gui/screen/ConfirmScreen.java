@@ -78,7 +78,7 @@ public class ConfirmScreen extends Screen {
         int messageY = 28 - ((messageLines.size() * font.lineHeight) / 2);
         for (int i = 0; i < messageLines.size(); i++) {
             FormattedCharSequence messageLine = messageLines.get(i);
-            guiGraphics.drawCenteredString(font, messageLine, leftPos + 120, topPos + messageY + i * font.lineHeight, 0xFFFFFFFF);
+            guiGraphics.drawString(font, messageLine, leftPos + 120 - (font.width(messageLine) / 2), topPos + messageY + i * font.lineHeight, 0xFF414141, false);
         }
     }
 
