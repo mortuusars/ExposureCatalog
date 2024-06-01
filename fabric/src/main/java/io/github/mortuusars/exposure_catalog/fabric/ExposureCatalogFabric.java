@@ -1,6 +1,7 @@
 package io.github.mortuusars.exposure_catalog.fabric;
 
 //import fuzs.forgeconfigapiport.api.config.v2.ForgeConfigRegistry;
+import dev.architectury.event.events.common.LifecycleEvent;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.command.CatalogCommand;
 import io.github.mortuusars.exposure_catalog.network.fabric.PacketsImpl;

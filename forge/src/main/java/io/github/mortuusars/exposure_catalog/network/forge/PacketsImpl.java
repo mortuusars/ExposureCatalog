@@ -5,10 +5,7 @@ import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
 import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
 import io.github.mortuusars.exposure_catalog.network.packet.client.*;
-import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
-import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposureC2SP;
-import io.github.mortuusars.exposure_catalog.network.packet.server.QueryExposuresC2SP;
-import io.github.mortuusars.exposure_catalog.network.packet.server.QueryThumbnailC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.server.*;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
@@ -50,6 +47,11 @@ public class PacketsImpl {
         CHANNEL.messageBuilder(QueryThumbnailC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(QueryThumbnailC2SP::toBuffer)
                 .decoder(QueryThumbnailC2SP::fromBuffer)
+                .consumerMainThread(PacketsImpl::handlePacket)
+                .add();
+        CHANNEL.messageBuilder(CatalogClosedC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(CatalogClosedC2SP::toBuffer)
+                .decoder(CatalogClosedC2SP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
 

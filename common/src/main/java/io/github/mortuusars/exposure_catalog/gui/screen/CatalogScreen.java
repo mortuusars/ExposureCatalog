@@ -25,6 +25,7 @@ import io.github.mortuusars.exposure_catalog.data.ExposureThumbnail;
 import io.github.mortuusars.exposure_catalog.data.client.CatalogClient;
 import io.github.mortuusars.exposure_catalog.gui.screen.tooltip.BelowOrAboveAreaTooltipPositioner;
 import io.github.mortuusars.exposure_catalog.network.Packets;
+import io.github.mortuusars.exposure_catalog.network.packet.server.CatalogClosedC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposureC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.QueryExposuresC2SP;
@@ -492,6 +493,7 @@ public class CatalogScreen extends Screen {
         //noinspection RedundantOperationOnEmptyContainer
         for (String id : removedIds) {
             filteredItems.remove(id);
+            CatalogClient.removeExposure(id);
         }
 
         selectedIndexes.clear();
@@ -1183,7 +1185,9 @@ public class CatalogScreen extends Screen {
     @Override
     public void onClose() {
         saveState();
+        CatalogClient.clear();
         ExposureClient.getExposureStorage().clear();
+        Packets.sendToServer(new CatalogClosedC2SP());
         super.onClose();
     }
 

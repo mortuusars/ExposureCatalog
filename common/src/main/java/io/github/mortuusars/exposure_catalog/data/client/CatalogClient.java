@@ -72,6 +72,12 @@ public class CatalogClient {
         return openedScreen instanceof CatalogScreen catalogScreen ? Optional.of(catalogScreen) : Optional.empty();
     }
 
+    public static void removeExposure(String exposureId) {
+        exposures.remove(exposureId);
+        thumbnails.remove(exposureId);
+        queriedThumbnails.remove(exposureId);
+    }
+
     public static void clear() {
         exposures.clear();
         thumbnails.clear();
