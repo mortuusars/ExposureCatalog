@@ -116,14 +116,15 @@ public class CatalogScreen extends Screen {
     protected ExposureSize exportSize = ExposureSize.X1;
     protected ExposureLook exportLook = ExposureLook.REGULAR;
 
-    protected boolean isExposuresLoading;
+    protected boolean isLoading;
 
     protected List<String> exposures = new ArrayList<>();
     protected List<String> textures = Collections.emptyList();
 
     protected ArrayList<String> filteredItems = new ArrayList<>();
-    protected ArrayList<Integer> selectedIndexes = new ArrayList<>();
-    protected int selectionStartIndex = 0;
+
+    protected SelectionHandler selection = new SelectionHandler();
+
     protected int totalRows = 0;
 
     protected int topRowIndex = 0;
@@ -144,7 +145,7 @@ public class CatalogScreen extends Screen {
     }
 
     public void onExposuresReceived(Map<String, ExposureInfo> exposuresList) {
-        isExposuresLoading = false;
+        isLoading = false;
         this.exposures = new ArrayList<>(exposuresList.keySet().stream().toList());
         orderAndSortExposuresList(this.order, this.sorting);
 
@@ -348,21 +349,21 @@ public class CatalogScreen extends Screen {
             loadState();
             ExposureClient.getExposureStorage().clear();
             Packets.sendToServer(new QueryExposuresC2SP(false));
-            isExposuresLoading = true;
+            isLoading = true;
             initialized = true;
         }
 
         updateElements();
     }
 
-    private static void playClickSound() {
+    protected void playClickSound() {
         Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
                 Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
     }
 
     protected Component createExportButtonTooltip() {
         MutableComponent tooltip = Component.translatable("gui.exposure_catalog.catalog.export." +
-                        (selectedIndexes.isEmpty() || selectedIndexes.size() == exposures.size() ? "all" : "selected"))
+                        (selection.isEmpty() || selection.size() == exposures.size() ? "all" : "selected"))
                 .append(" ")
                 .append(Component.translatable("gui.exposure_catalog.catalog.export.hotkey"));
 
@@ -400,7 +401,7 @@ public class CatalogScreen extends Screen {
         if (mode == Mode.TEXTURES)
             return true;
 
-        if (mode == Mode.EXPOSURES && isExposuresLoading)
+        if (mode == Mode.EXPOSURES && isLoading)
             return false;
 
         return Util.getMillis() >= refreshCooldownExpireTime;
@@ -415,7 +416,7 @@ public class CatalogScreen extends Screen {
             boolean reload = Screen.hasShiftDown();
             Packets.sendToServer(new QueryExposuresC2SP(reload));
             if (reload) {
-                isExposuresLoading = true;
+                isLoading = true;
                 CatalogClient.clear();
             }
             refreshCooldownExpireTime = Util.getMillis() + (reload ? RELOAD_COOLDOWN_MS : REFRESH_COOLDOWN_MS);
@@ -429,8 +430,8 @@ public class CatalogScreen extends Screen {
     }
 
     protected void exportExposures() {
-        if (!selectedIndexes.isEmpty()) {
-            for (int index : selectedIndexes) {
+        if (!selection.isEmpty()) {
+            for (int index : selection.get()) {
                 String exposureId = filteredItems.get(index);
                 Packets.sendToServer(new ExportExposureC2SP(exposureId, exportSize, exportLook));
             }
@@ -452,18 +453,18 @@ public class CatalogScreen extends Screen {
     }
 
     protected void deleteExposures() {
-        if (mode != Mode.EXPOSURES || selectedIndexes.isEmpty() || filteredItems.isEmpty())
+        if (mode != Mode.EXPOSURES || selection.isEmpty() || filteredItems.isEmpty())
             return;
 
         if (Screen.hasShiftDown())
             deleteExposuresNoConfirm();
         else {
             Component message;
-            if (selectedIndexes.size() == 1) {
-                String exposureId = filteredItems.get(selectedIndexes.get(0));
+            if (selection.size() == 1) {
+                String exposureId = filteredItems.get(selection.get().iterator().next());
                 message = Component.translatable("gui.exposure_catalog.catalog.confirm.message.delete_one", exposureId);
             } else {
-                message = Component.translatable("gui.exposure_catalog.catalog.confirm.message.delete_many", selectedIndexes.size());
+                message = Component.translatable("gui.exposure_catalog.catalog.confirm.message.delete_many", selection.size());
             }
 
             Screen confirmScreen = new ConfirmScreen(this, message, CommonComponents.GUI_YES,
@@ -474,12 +475,12 @@ public class CatalogScreen extends Screen {
     }
 
     protected void deleteExposuresNoConfirm() {
-        if (mode != Mode.EXPOSURES || selectedIndexes.isEmpty() || filteredItems.isEmpty())
+        if (mode != Mode.EXPOSURES || selection.isEmpty() || filteredItems.isEmpty())
             return;
 
         ArrayList<String> removedIds = new ArrayList<>();
 
-        for (Integer index : selectedIndexes) {
+        for (Integer index : selection.get()) {
             if (index < 0 || index >= filteredItems.size())
                 continue;
 
@@ -494,12 +495,12 @@ public class CatalogScreen extends Screen {
             CatalogClient.removeExposure(id);
         }
 
-        selectedIndexes.clear();
+        selection.clear();
 
         if (isThumbnailsGridFocused) {
             int globalIndex = focusedThumbnailIndex + (topRowIndex * COLS);
             if (globalIndex >= 0 && globalIndex < filteredItems.size() - 1)
-                selectedIndexes.add(globalIndex);
+                selection.select(globalIndex);
         }
 
         updateElements();
@@ -513,7 +514,7 @@ public class CatalogScreen extends Screen {
         sortingButton.active = mode == Mode.EXPOSURES;
 
         exportButton.active = mode == Mode.EXPOSURES;
-        deleteButton.active = mode == Mode.EXPOSURES && !selectedIndexes.isEmpty();
+        deleteButton.active = mode == Mode.EXPOSURES && !selection.isEmpty();
 
         refreshButton.active = canRefresh();
     }
@@ -608,7 +609,7 @@ public class CatalogScreen extends Screen {
 
         this.totalRows = (int) Math.ceil(filteredItems.size() / (float) COLS);
 
-        selectedIndexes.clear();
+        selection.clear();
         scroll(Integer.MIN_VALUE);
     }
 
@@ -635,7 +636,7 @@ public class CatalogScreen extends Screen {
 
                 Rect2i area = new Rect2i(thumbnailsArea.getX() + 5 + thumbnailX,
                         thumbnailsArea.getY() + 5 + thumbnailY, 48, 48);
-                boolean isSelected = selectedIndexes.contains(idIndex);
+                boolean isSelected = selection.get().contains(idIndex);
                 Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, isSelected);
                 thumbnails.add(thumbnail);
             }
@@ -811,7 +812,7 @@ public class CatalogScreen extends Screen {
         guiGraphics.drawString(font, title, leftPos + 8, topPos + 8, 0xFF414141, false);
 
         // Count
-        if (isExposuresLoading && mode == Mode.EXPOSURES) {
+        if (isLoading && mode == Mode.EXPOSURES) {
             int dotAnimation = (int) (Util.getMillis() / 750 % 3) + 1;
             Component component = Component.translatable("gui.exposure_catalog.catalog.loading" + dotAnimation)
                     .withStyle(Style.EMPTY.withColor(0xFF414141));
@@ -821,8 +822,8 @@ public class CatalogScreen extends Screen {
             String filteredCountStr = Integer.toString(filteredItems.size());
 
             Component countComponent = Component.literal(filteredCountStr).withStyle(Style.EMPTY.withColor(0xFF414141));
-            if (!selectedIndexes.isEmpty()) {
-                String selectedCountStr = Integer.toString(selectedIndexes.size());
+            if (!selection.isEmpty()) {
+                String selectedCountStr = Integer.toString(selection.size());
                 countComponent = Component.literal(selectedCountStr).withStyle(Style.EMPTY.withColor(0xFF3858db))
                         .append(Component.literal("/").withStyle(Style.EMPTY.withColor(0xFF414141)))
                         .append(countComponent);
@@ -872,18 +873,17 @@ public class CatalogScreen extends Screen {
 
             if (Screen.hasControlDown() || button == InputConstants.MOUSE_BUTTON_RIGHT) {
                 if (Screen.hasShiftDown()) {
-                    int start = Math.min(thumbnail.index(), selectionStartIndex);
-                    int end = Math.max(thumbnail.index(), selectionStartIndex);
+                    int start = Math.min(thumbnail.index(), selection.getLastSelectedIndex());
+                    int end = Math.max(thumbnail.index(), selection.getLastSelectedIndex());
                     for (int i = start; i <= end; i++) {
-                        if (!selectedIndexes.contains(i))
-                            selectedIndexes.add(i);
+                        if (!selection.get().contains(i))
+                            selection.select(i);
                     }
                 } else {
-                    if (selectedIndexes.contains(thumbnail.index))
-                        selectedIndexes.remove(Integer.valueOf(thumbnail.index()));
+                    if (selection.get().contains(thumbnail.index))
+                        selection.remove(thumbnail.index());
                     else {
-                        selectedIndexes.add(thumbnail.index());
-                        selectionStartIndex = thumbnail.index();
+                        selection.select(thumbnail.index());
                     }
                 }
                 updateElements();
@@ -979,81 +979,9 @@ public class CatalogScreen extends Screen {
                 return true;
         }
 
-        if (keyCode == InputConstants.KEY_TAB) {
-            if (!filteredItems.isEmpty() && !Screen.hasShiftDown() && getFocused() == modeButton) {
-                setFocused(null);
-                isThumbnailsGridFocused = true;
-                focusedThumbnailIndex = 0;
+        if (tabKeyPressed(keyCode)) return true;
 
-                selectedIndexes.clear();
-                selectedIndexes.add(focusedThumbnailIndex + (topRowIndex * COLS));
-                updateElements();
-
-                return true;
-            } else if (!filteredItems.isEmpty() && Screen.hasShiftDown() && getFocused() == refreshButton && !isThumbnailsGridFocused) {
-                setFocused(null);
-                isThumbnailsGridFocused = true;
-                focusedThumbnailIndex = 0;
-
-                selectedIndexes.clear();
-                selectedIndexes.add(focusedThumbnailIndex + (topRowIndex * COLS));
-                updateElements();
-
-                return true;
-            } else if (isThumbnailsGridFocused) {
-                Button newFocusTarget = Screen.hasShiftDown() ? modeButton : refreshButton;
-                setFocused(newFocusTarget);
-                isThumbnailsGridFocused = false;
-
-                if (selectedIndexes.size() == 1 && selectedIndexes.get(0) == focusedThumbnailIndex + (topRowIndex * COLS)) {
-                    selectedIndexes.clear();
-                    updateElements();
-                }
-
-                return true;
-            }
-        }
-
-        if (!filteredItems.isEmpty() && List.of(InputConstants.KEY_LEFT, InputConstants.KEY_RIGHT,
-                InputConstants.KEY_UP, InputConstants.KEY_DOWN).contains(keyCode)) {
-            if (!isThumbnailsGridFocused) {
-                isThumbnailsGridFocused = true;
-            } else {
-                if (keyCode == InputConstants.KEY_LEFT) {
-                    int newIndex = focusedThumbnailIndex - 1;
-                    if (newIndex < 0 && topRowIndex > 0) {
-                        scroll(-1);
-                        focusedThumbnailIndex = COLS - 1;
-                    } else
-                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-                } else if (keyCode == InputConstants.KEY_RIGHT) {
-                    int newIndex = focusedThumbnailIndex + 1;
-                    if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
-                        scroll(1);
-                        focusedThumbnailIndex = ROWS * COLS - COLS;
-                    } else
-                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-                } else if (keyCode == InputConstants.KEY_UP) {
-                    int newIndex = focusedThumbnailIndex - COLS;
-                    if (newIndex < 0 && topRowIndex > 0) {
-                        scroll(-1);
-                    } else
-                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-                } else if (keyCode == InputConstants.KEY_DOWN) {
-                    int newIndex = focusedThumbnailIndex + COLS;
-                    if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
-                        scroll(1);
-                    } else
-                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-                }
-            }
-
-            selectedIndexes.clear();
-            selectedIndexes.add(focusedThumbnailIndex + (topRowIndex * COLS));
-            updateElements();
-
-            return true;
-        }
+        if (arrowKeysPressed(keyCode)) return true;
 
         if (keyCode == InputConstants.KEY_HOME) {
             scroll(Integer.MIN_VALUE);
@@ -1092,15 +1020,15 @@ public class CatalogScreen extends Screen {
                 return true;
             }
             if (keyCode == InputConstants.KEY_A) {
-                selectedIndexes.clear();
-                selectedIndexes.addAll(IntStream.range(0, filteredItems.size()).boxed().toList());
+                selection.clear();
+                selection.select(IntStream.range(0, filteredItems.size()).boxed().toList());
                 updateElements();
                 playClickSound();
                 return true;
             }
             if (keyCode == InputConstants.KEY_D) {
-                if (!selectedIndexes.isEmpty()) {
-                    selectedIndexes.clear();
+                if (!selection.isEmpty()) {
+                    selection.clear();
                     updateElements();
                     playClickSound();
                 }
@@ -1114,6 +1042,90 @@ public class CatalogScreen extends Screen {
         }
 
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    private boolean tabKeyPressed(int keyCode) {
+        if (keyCode == InputConstants.KEY_TAB) {
+            if (!filteredItems.isEmpty() && !Screen.hasShiftDown() && getFocused() == modeButton) {
+                setFocused(null);
+                isThumbnailsGridFocused = true;
+                focusedThumbnailIndex = 0;
+
+                selection.clear();
+                selection.select(focusedThumbnailIndex + (topRowIndex * COLS));
+                updateElements();
+
+                return true;
+            } else if (!filteredItems.isEmpty() && Screen.hasShiftDown() && getFocused() == refreshButton && !isThumbnailsGridFocused) {
+                setFocused(null);
+                isThumbnailsGridFocused = true;
+                focusedThumbnailIndex = 0;
+
+                selection.clear();
+                selection.select(focusedThumbnailIndex + (topRowIndex * COLS));
+                updateElements();
+
+                return true;
+            } else if (isThumbnailsGridFocused) {
+                Button newFocusTarget = Screen.hasShiftDown() ? modeButton : refreshButton;
+                setFocused(newFocusTarget);
+                isThumbnailsGridFocused = false;
+
+                if (selection.size() == 1 && selection.get().iterator().next() == focusedThumbnailIndex + (topRowIndex * COLS)) {
+                    selection.clear();
+                    updateElements();
+                }
+
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean arrowKeysPressed(int keyCode) {
+        if (!filteredItems.isEmpty() && List.of(InputConstants.KEY_LEFT, InputConstants.KEY_RIGHT,
+                InputConstants.KEY_UP, InputConstants.KEY_DOWN).contains(keyCode)) {
+            if (!isThumbnailsGridFocused) {
+                isThumbnailsGridFocused = true;
+                setFocused(null);
+            } else {
+                if (keyCode == InputConstants.KEY_LEFT) {
+                    int newIndex = focusedThumbnailIndex - 1;
+                    if (newIndex < 0 && topRowIndex > 0) {
+                        scroll(-1);
+                        focusedThumbnailIndex = COLS - 1;
+                    } else
+                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+                } else if (keyCode == InputConstants.KEY_RIGHT) {
+                    int newIndex = focusedThumbnailIndex + 1;
+                    if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
+                        scroll(1);
+                        focusedThumbnailIndex = ROWS * COLS - COLS;
+                    } else
+                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+                } else if (keyCode == InputConstants.KEY_UP) {
+                    int newIndex = focusedThumbnailIndex - COLS;
+                    if (newIndex < 0 && topRowIndex > 0) {
+                        scroll(-1);
+                    } else
+                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+                } else if (keyCode == InputConstants.KEY_DOWN) {
+                    int newIndex = focusedThumbnailIndex + COLS;
+                    if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
+                        scroll(1);
+                    } else
+                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+                }
+            }
+
+            if (!Screen.hasShiftDown())
+                selection.clear();
+            selection.select(focusedThumbnailIndex + (topRowIndex * COLS));
+            updateElements();
+
+            return true;
+        }
+        return false;
     }
 
     protected void updateElements() {
