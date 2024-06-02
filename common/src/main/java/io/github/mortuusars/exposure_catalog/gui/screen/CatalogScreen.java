@@ -735,7 +735,7 @@ public class CatalogScreen extends Screen {
     }
 
     @NotNull
-    private static List<Component> getThumbnailTooltipLines(Thumbnail thumbnail) {
+    private List<Component> getThumbnailTooltipLines(Thumbnail thumbnail) {
         String idOrTextureStr = thumbnail.idOrTexture().map(s -> s, ResourceLocation::toString);
 
         List<Component> lines = new ArrayList<>();
@@ -766,6 +766,7 @@ public class CatalogScreen extends Screen {
             lines.add(Component.translatable("gui.exposure_catalog.thumbnail.tooltip.view"));
             lines.add(Component.translatable("gui.exposure_catalog.thumbnail.tooltip.selection"));
             lines.add(Component.translatable("gui.exposure_catalog.thumbnail.tooltip.selection.shift"));
+            lines.add(Component.translatable("gui.exposure_catalog.thumbnail.tooltip.selection.clear"));
         } else {
             lines.add(Component.translatable("gui.exposure_catalog.thumbnail.tooltip.control_info"));
         }

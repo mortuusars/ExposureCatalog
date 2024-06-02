@@ -48,5 +48,6 @@
   "gui.exposure_catalog.thumbnail.tooltip.control_info": "§8Press [§7Shift§8] for controls",
   "gui.exposure_catalog.thumbnail.tooltip.selection": "§8[§7Ctrl+Left Click§8] or [§7Right Click§8] to select/deselect",
   "gui.exposure_catalog.thumbnail.tooltip.selection.shift": "§8[§7Ctrl+Shift+Left Click§8] or [§7Shift+Right Click§8] to select range",
+  "gui.exposure_catalog.thumbnail.tooltip.selection.clear": "§8[§7Ctrl+D§8] to clear selection",
   "gui.exposure_catalog.thumbnail.tooltip.view": "§8[§7Left Click§8] to view"
 }
