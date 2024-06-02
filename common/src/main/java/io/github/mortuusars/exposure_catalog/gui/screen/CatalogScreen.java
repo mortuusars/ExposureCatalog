@@ -984,10 +984,16 @@ public class CatalogScreen extends Screen {
         if (arrowKeysPressed(keyCode)) return true;
 
         if (keyCode == InputConstants.KEY_HOME) {
+            selection.clear();
+            selection.select(0);
+            focusedThumbnailIndex = 0;
             scroll(Integer.MIN_VALUE);
             return true;
         }
         if (keyCode == InputConstants.KEY_END) {
+            selection.clear();
+            selection.select(filteredItems.size() - 1);
+            focusedThumbnailIndex = filteredItems.size() - 1;
             scroll(Integer.MAX_VALUE);
             return true;
         }
@@ -1045,87 +1051,124 @@ public class CatalogScreen extends Screen {
     }
 
     private boolean tabKeyPressed(int keyCode) {
-        if (keyCode == InputConstants.KEY_TAB) {
-            if (!filteredItems.isEmpty() && !Screen.hasShiftDown() && getFocused() == modeButton) {
-                setFocused(null);
-                isThumbnailsGridFocused = true;
-                focusedThumbnailIndex = 0;
+        if (keyCode != InputConstants.KEY_TAB)
+            return false;
 
+        if (!filteredItems.isEmpty() && !Screen.hasShiftDown() && getFocused() == modeButton) {
+            setFocused(null);
+            isThumbnailsGridFocused = true;
+            focusedThumbnailIndex = 0;
+
+            selection.clear();
+            selection.select(focusedThumbnailIndex + (topRowIndex * COLS));
+            updateElements();
+
+            return true;
+        } else if (!filteredItems.isEmpty() && Screen.hasShiftDown() && getFocused() == refreshButton && !isThumbnailsGridFocused) {
+            setFocused(null);
+            isThumbnailsGridFocused = true;
+            focusedThumbnailIndex = 0;
+
+            selection.clear();
+            selection.select(focusedThumbnailIndex + (topRowIndex * COLS));
+            updateElements();
+
+            return true;
+        } else if (isThumbnailsGridFocused) {
+            Button newFocusTarget = Screen.hasShiftDown() ? modeButton : refreshButton;
+            setFocused(newFocusTarget);
+            isThumbnailsGridFocused = false;
+
+            if (selection.size() == 1 && selection.get().iterator().next() == focusedThumbnailIndex + (topRowIndex * COLS)) {
                 selection.clear();
-                selection.select(focusedThumbnailIndex + (topRowIndex * COLS));
                 updateElements();
-
-                return true;
-            } else if (!filteredItems.isEmpty() && Screen.hasShiftDown() && getFocused() == refreshButton && !isThumbnailsGridFocused) {
-                setFocused(null);
-                isThumbnailsGridFocused = true;
-                focusedThumbnailIndex = 0;
-
-                selection.clear();
-                selection.select(focusedThumbnailIndex + (topRowIndex * COLS));
-                updateElements();
-
-                return true;
-            } else if (isThumbnailsGridFocused) {
-                Button newFocusTarget = Screen.hasShiftDown() ? modeButton : refreshButton;
-                setFocused(newFocusTarget);
-                isThumbnailsGridFocused = false;
-
-                if (selection.size() == 1 && selection.get().iterator().next() == focusedThumbnailIndex + (topRowIndex * COLS)) {
-                    selection.clear();
-                    updateElements();
-                }
-
-                return true;
             }
+
+            return true;
         }
         return false;
     }
 
     private boolean arrowKeysPressed(int keyCode) {
-        if (!filteredItems.isEmpty() && List.of(InputConstants.KEY_LEFT, InputConstants.KEY_RIGHT,
-                InputConstants.KEY_UP, InputConstants.KEY_DOWN).contains(keyCode)) {
-            if (!isThumbnailsGridFocused) {
-                isThumbnailsGridFocused = true;
-                setFocused(null);
-            } else {
-                if (keyCode == InputConstants.KEY_LEFT) {
-                    int newIndex = focusedThumbnailIndex - 1;
-                    if (newIndex < 0 && topRowIndex > 0) {
-                        scroll(-1);
-                        focusedThumbnailIndex = COLS - 1;
-                    } else
-                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-                } else if (keyCode == InputConstants.KEY_RIGHT) {
-                    int newIndex = focusedThumbnailIndex + 1;
-                    if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
-                        scroll(1);
-                        focusedThumbnailIndex = ROWS * COLS - COLS;
-                    } else
-                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-                } else if (keyCode == InputConstants.KEY_UP) {
-                    int newIndex = focusedThumbnailIndex - COLS;
-                    if (newIndex < 0 && topRowIndex > 0) {
-                        scroll(-1);
-                    } else
-                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-                } else if (keyCode == InputConstants.KEY_DOWN) {
-                    int newIndex = focusedThumbnailIndex + COLS;
-                    if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
-                        scroll(1);
-                    } else
-                        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-                }
-            }
+        if (filteredItems.isEmpty() || !List.of(InputConstants.KEY_LEFT, InputConstants.KEY_RIGHT,
+                InputConstants.KEY_UP, InputConstants.KEY_DOWN).contains(keyCode))
+            return false;
 
-            if (!Screen.hasShiftDown())
-                selection.clear();
+        if (!isThumbnailsGridFocused) {
+            setFocused(null);
+            isThumbnailsGridFocused = true;
+            focusedThumbnailIndex = 0;
             selection.select(focusedThumbnailIndex + (topRowIndex * COLS));
             updateElements();
-
             return true;
         }
-        return false;
+
+        Map<Integer, Integer> keys = Map.of(
+                InputConstants.KEY_LEFT, -1,
+                InputConstants.KEY_RIGHT, 1,
+                InputConstants.KEY_UP, -COLS,
+                InputConstants.KEY_DOWN, COLS);
+        int change = keys.get(keyCode);
+        int oldIndex = focusedThumbnailIndex;
+        int newIndex = focusedThumbnailIndex + change;
+
+        if (newIndex < 0) {
+            if (topRowIndex <= 0)
+                return true;
+            scroll(-1);
+            newIndex += COLS;
+        } else if (newIndex > (ROWS * COLS - 1)) {
+            if (topRowIndex >= totalRows - ROWS)
+                return true;
+            scroll(1);
+            newIndex -= COLS;
+        }
+
+        focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+
+
+//            if (keyCode == InputConstants.KEY_LEFT) {
+//                int newIndex = focusedThumbnailIndex - 1;
+//                if (newIndex < 0 && topRowIndex > 0) {
+//                    scroll(-1);
+//                    focusedThumbnailIndex = COLS - 1;
+//                } else
+//                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+//            } else if (keyCode == InputConstants.KEY_RIGHT) {
+//                int newIndex = focusedThumbnailIndex + 1;
+//                if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
+//                    scroll(1);
+//                    focusedThumbnailIndex = ROWS * COLS - COLS;
+//                } else
+//                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+//            } else if (keyCode == InputConstants.KEY_UP) {
+//                int newIndex = focusedThumbnailIndex - COLS;
+//                if (newIndex < 0 && topRowIndex > 0) {
+//                    scroll(-1);
+//                } else
+//                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+//            } else if (keyCode == InputConstants.KEY_DOWN) {
+//                int newIndex = focusedThumbnailIndex + COLS;
+//                if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
+//                    scroll(1);
+//                } else
+//                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
+//            }
+
+        if (!Screen.hasShiftDown())
+            selection.clear();
+        else {
+            int lesser = Math.min(oldIndex, newIndex);
+            int larger = Math.max(oldIndex, newIndex);
+            for (int i = lesser; i <= larger; i++) {
+                selection.select(i + (topRowIndex * COLS));
+            }
+        }
+
+        selection.select(focusedThumbnailIndex + (topRowIndex * COLS));
+        updateElements();
+
+        return true;
     }
 
     protected void updateElements() {
