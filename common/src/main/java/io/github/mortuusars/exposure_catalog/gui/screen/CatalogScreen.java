@@ -10,6 +10,7 @@ import com.mojang.datafixers.util.Either;
 import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.Exposure;
 import io.github.mortuusars.exposure.ExposureClient;
+import io.github.mortuusars.exposure.camera.infrastructure.FilmType;
 import io.github.mortuusars.exposure.camera.infrastructure.FrameData;
 import io.github.mortuusars.exposure.data.ExposureLook;
 import io.github.mortuusars.exposure.data.ExposureSize;
@@ -210,7 +211,7 @@ public class CatalogScreen extends Screen {
         addRenderableWidget(sortingButton);
 
         searchBox = new EditBox(font, searchBarArea.getX() + 1, searchBarArea.getY() + 1, searchBarArea.getWidth(), font.lineHeight, Component.translatable("itemGroup.search"));
-        searchBox.setMaxLength(50);
+        searchBox.setMaxLength(99);
         searchBox.setBordered(false);
         searchBox.setVisible(true);
         searchBox.setTextColor(0xFFFFFF);
@@ -595,22 +596,54 @@ public class CatalogScreen extends Screen {
     }
 
     protected void refreshSearchResults() {
-        filteredItems.clear();
+        Collection<String> items = mode == Mode.EXPOSURES ? exposures : textures;
+        String filter = searchBox != null ? searchBox.getValue().trim() : "";
+        String[] queries = filter.split("\\s+");
 
-        List<String> items = mode == Mode.EXPOSURES ? exposures : textures;
-
-        String filter = searchBox != null ? searchBox.getValue() : "";
-        if (filter.isEmpty()) {
-            filteredItems.addAll(items);
-        } else {
-            PlainTextSearchTree<String> tree = PlainTextSearchTree.create(items, String::lines);
-            filteredItems.addAll(tree.search(filter.toLowerCase(Locale.ROOT)));
-        }
+        filterSearchResults(items, queries, mode);
 
         this.totalRows = (int) Math.ceil(filteredItems.size() / (float) COLS);
 
         selection.clear();
         scroll(Integer.MIN_VALUE);
+    }
+
+    protected void filterSearchResults(Collection<String> items, String[] queries, Mode mode) {
+        filteredItems.clear();
+
+        if (queries.length == 0) {
+            filteredItems.addAll(items);
+            return;
+        }
+
+        List<String> filtered = new ArrayList<>(items);
+
+        for (String query : queries) {
+            if (query.isEmpty())
+                continue;
+
+            if (mode == Mode.EXPOSURES && (query.startsWith("=") || query.startsWith("!="))) {
+                boolean negative = query.startsWith("!=");
+                String filter = query.substring(negative ? 2 : 1);
+
+                if (filter.length() > 1 && "printed".startsWith(filter)) {
+                    filtered.removeIf(id -> !CatalogClient.getExposures().get(id).wasPrinted() ^ negative);
+                } else if (filter.length() > 1 && "color".startsWith(filter)) {
+                    filtered.removeIf(id -> CatalogClient.getExposures().get(id).getType() != FilmType.COLOR ^ negative);
+                } else if (filter.startsWith("x") && filter.length() > 1 && filter.substring(1).matches("^[0-9]+$")) {
+                    int size = Integer.parseInt(filter.substring(1));
+                    filtered.removeIf(id -> !(CatalogClient.getExposures().get(id).getWidth() == size) ^ negative);
+                } else {
+                    filtered.clear();
+                }
+            }
+            else {
+                PlainTextSearchTree<String> tree = PlainTextSearchTree.create(filtered, String::lines);
+                filtered = new ArrayList<>(tree.search(query.toLowerCase(Locale.ROOT)));
+            }
+        }
+
+        filteredItems.addAll(filtered);
     }
 
     public void updateThumbnailsGrid() {
@@ -715,8 +748,23 @@ public class CatalogScreen extends Screen {
 
     protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         if (searchBox.isMouseOver(mouseX, mouseY)) {
-            guiGraphics.renderTooltip(font, Component.translatable("gui.exposure_catalog.searchbar.hotkey"), mouseX, mouseY);
-            return;
+            List<Component> lines = new ArrayList<>();
+
+            lines.add(Component.translatable("gui.exposure_catalog.searchbar")
+                    .append(" ")
+                    .append(Component.translatable("gui.exposure_catalog.searchbar.hotkey")));
+
+            if (Screen.hasShiftDown()) {
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.size"));
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.color"));
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.printed"));
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.filters"));
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.invert"));
+            }
+            else
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.control_info"));
+
+            guiGraphics.renderTooltip(font, lines, Optional.empty(), mouseX, mouseY);
         }
 
         for (Thumbnail thumbnail : thumbnails) {

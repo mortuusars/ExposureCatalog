@@ -4,11 +4,11 @@ import io.github.mortuusars.exposure.camera.infrastructure.FilmType;
 import net.minecraft.network.FriendlyByteBuf;
 
 public class ExposureInfo {
-    protected String exposureId;
-    protected int width, height;
-    private final FilmType type;
-    private final boolean wasPrinted;
-    protected long timestampUnixSeconds;
+    protected final String exposureId;
+    protected final int width, height;
+    protected final FilmType type;
+    protected final boolean wasPrinted;
+    protected final long timestampUnixSeconds;
 
     public ExposureInfo(String exposureId, int width, int height, FilmType type, boolean wasPrinted, long timestampUnixSeconds) {
         this.exposureId = exposureId;
@@ -37,6 +37,14 @@ public class ExposureInfo {
 
     public int getHeight() {
         return height;
+    }
+
+    public FilmType getType() {
+        return type;
+    }
+
+    public boolean wasPrinted() {
+        return wasPrinted;
     }
 
     public long getTimestampUnixSeconds() {
