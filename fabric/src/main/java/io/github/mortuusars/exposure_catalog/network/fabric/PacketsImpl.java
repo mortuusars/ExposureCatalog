@@ -22,7 +22,7 @@ public class PacketsImpl {
     public static void registerC2SPackets() {
         ServerPlayNetworking.registerGlobalReceiver(QueryExposuresC2SP.ID, new ServerHandler(QueryExposuresC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(DeleteExposureC2SP.ID, new ServerHandler(DeleteExposureC2SP::fromBuffer));
-        ServerPlayNetworking.registerGlobalReceiver(ExportExposureC2SP.ID, new ServerHandler(ExportExposureC2SP::fromBuffer));
+        ServerPlayNetworking.registerGlobalReceiver(ExportExposuresC2SP.ID, new ServerHandler(ExportExposuresC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(QueryThumbnailC2SP.ID, new ServerHandler(QueryThumbnailC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(CatalogClosedC2SP.ID, new ServerHandler(CatalogClosedC2SP::fromBuffer));
     }

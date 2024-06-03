@@ -12,7 +12,7 @@ import net.minecraft.util.FormattedCharSequence;
 
 import java.util.List;
 
-public class ConfirmScreen extends Screen {
+public class ConfirmScreen extends Screen implements OverlayScreen {
     public static final ResourceLocation TEXTURE = ExposureCatalog.resource("textures/gui/confirm.png");
 
     protected final Screen parent;
@@ -83,11 +83,6 @@ public class ConfirmScreen extends Screen {
     }
 
     @Override
-    public void onClose() {
-        Minecraft.getInstance().setScreen(parent);
-    }
-
-    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (getFocused() == null && keyCode == InputConstants.KEY_RETURN) {
             yesButton.onPress();
@@ -95,5 +90,15 @@ public class ConfirmScreen extends Screen {
         }
 
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public Screen getParent() {
+        return parent;
+    }
+
+    @Override
+    public void onClose() {
+        Minecraft.getInstance().setScreen(getParent());
     }
 }

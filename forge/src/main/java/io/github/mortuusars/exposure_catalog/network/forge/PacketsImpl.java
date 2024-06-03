@@ -39,9 +39,9 @@ public class PacketsImpl {
                 .decoder(DeleteExposureC2SP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
-        CHANNEL.messageBuilder(ExportExposureC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(ExportExposureC2SP::toBuffer)
-                .decoder(ExportExposureC2SP::fromBuffer)
+        CHANNEL.messageBuilder(ExportExposuresC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ExportExposuresC2SP::toBuffer)
+                .decoder(ExportExposuresC2SP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
         CHANNEL.messageBuilder(QueryThumbnailC2SP.class, id++, NetworkDirection.PLAY_TO_SERVER)
@@ -61,31 +61,11 @@ public class PacketsImpl {
                 .decoder(OpenCatalogS2CP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
-
         CHANNEL.messageBuilder(SendExposuresDataPartS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(SendExposuresDataPartS2CP::toBuffer)
                 .decoder(SendExposuresDataPartS2CP::fromBuffer)
                 .consumerMainThread(PacketsImpl::handlePacket)
                 .add();
-
-        CHANNEL.messageBuilder(NotifySendingStartS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .encoder(NotifySendingStartS2CP::toBuffer)
-                .decoder(NotifySendingStartS2CP::fromBuffer)
-                .consumerMainThread(PacketsImpl::handlePacket)
-                .add();
-
-        CHANNEL.messageBuilder(NotifyPartSentS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .encoder(NotifyPartSentS2CP::toBuffer)
-                .decoder(NotifyPartSentS2CP::fromBuffer)
-                .consumerMainThread(PacketsImpl::handlePacket)
-                .add();
-
-        CHANNEL.messageBuilder(SendExposuresCountS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .encoder(SendExposuresCountS2CP::toBuffer)
-                .decoder(SendExposuresCountS2CP::fromBuffer)
-                .consumerMainThread(PacketsImpl::handlePacket)
-                .add();
-
         CHANNEL.messageBuilder(SendExposureThumbnailS2CP.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(SendExposureThumbnailS2CP::toBuffer)
                 .decoder(SendExposureThumbnailS2CP::fromBuffer)

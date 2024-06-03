@@ -37,12 +37,13 @@ public record QueryThumbnailC2SP(String exposureId) implements IPacket {
         Preconditions.checkArgument(player instanceof ServerPlayer, "Player is required for " + ID + " packet");
         ServerPlayer serverPlayer = (ServerPlayer) player;
 
-//        serverPlayer.server.execute(() -> {
-            @Nullable ExposureThumbnail thumbnail = Catalog.getCache().getThumbnails().get(exposureId);
-            if (thumbnail != null) {
-                Packets.sendToClient(new SendExposureThumbnailS2CP(exposureId, thumbnail), serverPlayer);
-            }
-//        });
+        if (!player.hasPermissions(3))
+            return true;
+
+        @Nullable ExposureThumbnail thumbnail = Catalog.getCache().getThumbnails().get(exposureId);
+        if (thumbnail != null) {
+            Packets.sendToClient(new SendExposureThumbnailS2CP(exposureId, thumbnail), serverPlayer);
+        }
 
         return true;
     }

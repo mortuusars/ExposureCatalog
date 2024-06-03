@@ -34,6 +34,9 @@ public record QueryExposuresC2SP(boolean forceRebuild) implements IPacket {
         Preconditions.checkArgument(player instanceof ServerPlayer, "Player is required for " + ID + " packet");
         ServerPlayer serverPlayer = (ServerPlayer) player;
 
+        if (!player.hasPermissions(3))
+            return true;
+
         serverPlayer.server.execute(() -> Catalog.queryExposures(serverPlayer, forceRebuild));
 
         return true;

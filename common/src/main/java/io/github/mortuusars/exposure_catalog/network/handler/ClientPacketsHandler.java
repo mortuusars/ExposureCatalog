@@ -36,29 +36,4 @@ public class ClientPacketsHandler {
             CatalogClient.setThumbnail(packet.exposureId(), packet.thumbnail());
         });
     }
-
-    public static void notifySendingStart(NotifySendingStartS2CP packet) {
-//        executeOnMainThread(() ->
-//                getCatalogScreen().ifPresent(screen ->
-//                        screen.onReceivingStartNotification(packet.page(), packet.exposureIds())));
-    }
-
-    public static void notifyPartSent(NotifyPartSentS2CP packet) {
-//        executeOnMainThread(() ->
-//                getCatalogScreen().ifPresent(screen ->
-//                        screen.onPartSent(packet.page(), packet.exposureIds(), packet.allCount())));
-    }
-
-    public static void onExposuresCountReceived(SendExposuresCountS2CP packet) {
-//        executeOnMainThread(() ->
-//                getCatalogScreen().ifPresent(screen ->
-//                        screen.onTotalCountReceived(packet.count())));
-    }
-
-    private static Optional<CatalogScreen> getCatalogScreen() {
-        Screen openedScreen = Minecraft.getInstance().screen instanceof OverlayScreen overlayScreen ?
-                overlayScreen.getParent() : Minecraft.getInstance().screen;
-
-        return openedScreen instanceof CatalogScreen catalogScreen ? Optional.of(catalogScreen) : Optional.empty();
-    }
 }

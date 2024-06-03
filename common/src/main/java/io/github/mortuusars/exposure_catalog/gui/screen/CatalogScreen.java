@@ -15,8 +15,6 @@ import io.github.mortuusars.exposure.camera.infrastructure.FrameData;
 import io.github.mortuusars.exposure.data.ExposureLook;
 import io.github.mortuusars.exposure.data.ExposureSize;
 import io.github.mortuusars.exposure.data.storage.ExposureSavedData;
-import io.github.mortuusars.exposure.gui.screen.PhotographScreen;
-import io.github.mortuusars.exposure.gui.screen.album.AlbumPhotographScreen;
 import io.github.mortuusars.exposure.item.PhotographItem;
 import io.github.mortuusars.exposure.render.modifiers.ExposurePixelModifiers;
 import io.github.mortuusars.exposure.util.ItemAndStack;
@@ -32,7 +30,7 @@ import io.github.mortuusars.exposure_catalog.gui.screen.widget.EnumButton;
 import io.github.mortuusars.exposure_catalog.network.Packets;
 import io.github.mortuusars.exposure_catalog.network.packet.server.CatalogClosedC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
-import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposureC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposuresC2SP;
 import io.github.mortuusars.exposure_catalog.network.packet.server.QueryExposuresC2SP;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
@@ -63,6 +61,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -431,26 +430,27 @@ public class CatalogScreen extends Screen {
     }
 
     protected void exportExposures() {
-        if (!selection.isEmpty()) {
-            for (int index : selection.get()) {
-                String exposureId = filteredItems.get(index);
-                Packets.sendToServer(new ExportExposureC2SP(exposureId, exportSize, exportLook));
-            }
-        } else if (filteredItems.size() > 100) {
-            Component message = Component.translatable("gui.exposure_catalog.catalog.confirm.message.export_all", filteredItems.size());
+        if (mode == Mode.TEXTURES)
+            return;
+
+        List<String> exposureIds = !selection.isEmpty()
+                ? selection.get().stream().map(i -> filteredItems.get(i)).toList()
+                : filteredItems;
+
+        if (exposureIds.size() > 100) {
+            Component message = Component.translatable("gui.exposure_catalog.catalog.confirm.message.export_all", exposureIds.size());
             Screen confirmScreen = new ConfirmScreen(this, message, CommonComponents.GUI_YES,
-                    b -> exportAllExposures(), CommonComponents.GUI_NO, b -> {
+                    b -> exportExposures(exposureIds, exportSize, exportLook), CommonComponents.GUI_NO, b -> {
             });
             Minecraft.getInstance().setScreen(confirmScreen);
-        } else {
-            exportAllExposures();
+        }
+        else {
+            exportExposures(exposureIds, exportSize, exportLook);
         }
     }
 
-    protected void exportAllExposures() {
-        for (String exposureId : filteredItems) {
-            Packets.sendToServer(new ExportExposureC2SP(exposureId, exportSize, exportLook));
-        }
+    protected void exportExposures(List<String> exposureIds, ExposureSize size, ExposureLook look) {
+        ExportExposuresC2SP.sendSplitted(exposureIds, size, look);
     }
 
     protected void deleteExposures() {
@@ -1285,8 +1285,7 @@ public class CatalogScreen extends Screen {
 
         Collections.rotate(photographs, -clickedIndex);
 
-        //TODO: PhotographScreen queries all photographs when opened. We certainly don't want this when 15000 exposures is viewed.
-        PhotographScreen screen = new AlbumPhotographScreen(this, photographs);
+        CatalogPhotographScreen screen = new CatalogPhotographScreen(this, photographs);
         Minecraft.getInstance().setScreen(screen);
         Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
                 Exposure.SoundEvents.PHOTOGRAPH_RUSTLE.get(),
