@@ -350,6 +350,11 @@ public class CatalogScreen extends Screen {
             ExposureClient.getExposureStorage().clear();
             Packets.sendToServer(new QueryExposuresC2SP(false));
             isLoading = true;
+
+            if (mode == Mode.TEXTURES) {
+                refresh();
+            }
+
             initialized = true;
         }
 
@@ -1273,7 +1278,11 @@ public class CatalogScreen extends Screen {
     }
 
     protected void openPhotographView(int clickedIndex) {
-        List<ItemAndStack<PhotographItem>> photographs = new ArrayList<>(filteredItems.stream().map(item -> {
+        List<String> items = !selection.isEmpty()
+                ? selection.get().stream().map(i -> filteredItems.get(i)).toList()
+                : filteredItems;
+
+        List<ItemAndStack<PhotographItem>> photographs = new ArrayList<>(items.stream().map(item -> {
             ItemStack stack = new ItemStack(Exposure.Items.PHOTOGRAPH.get());
             CompoundTag tag = new CompoundTag();
 
@@ -1283,7 +1292,10 @@ public class CatalogScreen extends Screen {
             return new ItemAndStack<PhotographItem>(stack);
         }).toList());
 
-        Collections.rotate(photographs, -clickedIndex);
+        String clickedId = filteredItems.get(clickedIndex);
+        int clickedIdIndex = Math.max(0, items.indexOf(clickedId));
+
+        Collections.rotate(photographs, -clickedIdIndex);
 
         CatalogPhotographScreen screen = new CatalogPhotographScreen(this, photographs);
         Minecraft.getInstance().setScreen(screen);

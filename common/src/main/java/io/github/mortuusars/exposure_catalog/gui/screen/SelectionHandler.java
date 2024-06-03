@@ -1,11 +1,11 @@
 package io.github.mortuusars.exposure_catalog.gui.screen;
 
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 public class SelectionHandler {
-    private final Set<Integer> selectedIndexes = new HashSet<>();
+    private final Set<Integer> selectedIndexes = new LinkedHashSet<>();
     private int lastSelectedIndex = 0;
 
     public Set<Integer> get() {
