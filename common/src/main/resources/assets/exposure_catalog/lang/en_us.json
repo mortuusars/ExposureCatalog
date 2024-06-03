@@ -44,7 +44,7 @@
   "gui.exposure_catalog.catalog.sorting.alphabetical": "Alphabetically",
   "gui.exposure_catalog.catalog.sorting.date": "By Date",
   "gui.exposure_catalog.catalog.textures": "Textures",
-  "gui.exposure_catalog.export.already_exporting": "Cannot export exposures. Another export is currently in progress.",
+  "gui.exposure_catalog.export.already_exporting": "Cannot export exposures: another export is currently in progress.",
   "gui.exposure_catalog.export.error_occurred": "Some error occurred while exporting. See logs for details.",
   "gui.exposure_catalog.export.exported": "Exported %s exposures.",
   "gui.exposure_catalog.export.exporting_count": "Exporting %s exposures...",
