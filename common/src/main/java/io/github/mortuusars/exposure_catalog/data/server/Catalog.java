@@ -52,10 +52,16 @@ public class Catalog {
 
     public static void send(Consumer<IPacket> sender) {
         List<ExposureInfo> exposures = CACHE.getExposures().values().stream().toList();
-        List<List<ExposureInfo>> parts = Lists.partition(exposures, 2500);
-        for (int i = 0; i < parts.size(); i++) {
-            SendExposuresDataPartS2CP packet = new SendExposuresDataPartS2CP(i, i == parts.size() - 1, parts.get(i));
-            sender.accept(packet);
+
+        if (exposures.isEmpty()) {
+            sender.accept(new SendExposuresDataPartS2CP(0, true, exposures));
+        }
+        else {
+            List<List<ExposureInfo>> parts = Lists.partition(exposures, 2500);
+            for (int i = 0; i < parts.size(); i++) {
+                SendExposuresDataPartS2CP packet = new SendExposuresDataPartS2CP(i, i == parts.size() - 1, parts.get(i));
+                sender.accept(packet);
+            }
         }
     }
 

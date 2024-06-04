@@ -33,6 +33,7 @@
   "gui.exposure_catalog.catalog.mode.exposures": "Експозиції",
   "gui.exposure_catalog.catalog.mode.hotkey": "§8[Ctrl+M]",
   "gui.exposure_catalog.catalog.mode.textures": "Текстури",
+  "gui.exposure_catalog.catalog.no_exposures": "Немає експозицій",
   "gui.exposure_catalog.catalog.order": "Порядок",
   "gui.exposure_catalog.catalog.order.ascending": "За зростанням",
   "gui.exposure_catalog.catalog.order.descending": "За спаданням",

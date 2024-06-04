@@ -33,6 +33,7 @@
   "gui.exposure_catalog.catalog.mode.exposures": "Exposures",
   "gui.exposure_catalog.catalog.mode.hotkey": "§8[Ctrl+M]",
   "gui.exposure_catalog.catalog.mode.textures": "Textures",
+  "gui.exposure_catalog.catalog.no_exposures": "No Exposures",
   "gui.exposure_catalog.catalog.order": "Order",
   "gui.exposure_catalog.catalog.order.ascending": "Ascending",
   "gui.exposure_catalog.catalog.order.descending": "Descending",

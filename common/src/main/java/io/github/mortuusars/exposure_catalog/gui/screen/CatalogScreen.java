@@ -117,6 +117,7 @@ public class CatalogScreen extends Screen {
     protected ExposureLook exportLook = ExposureLook.REGULAR;
 
     protected boolean isLoading;
+    protected boolean haveExposures = true;
 
     protected List<String> exposures = new ArrayList<>();
     protected List<String> textures = Collections.emptyList();
@@ -146,11 +147,13 @@ public class CatalogScreen extends Screen {
 
     public void onExposuresReceived(Map<String, ExposureInfo> exposuresList) {
         isLoading = false;
-        this.exposures = new ArrayList<>(exposuresList.keySet().stream().toList());
+        haveExposures = !exposuresList.isEmpty();
+
+        exposures = new ArrayList<>(exposuresList.keySet().stream().toList());
         orderAndSortExposuresList(this.order, this.sorting);
 
         if (mode == Mode.EXPOSURES) {
-            this.topRowIndex = 0;
+            topRowIndex = 0;
             refreshSearchResults();
         }
     }
@@ -497,6 +500,7 @@ public class CatalogScreen extends Screen {
 
         //noinspection RedundantOperationOnEmptyContainer
         for (String id : removedIds) {
+            exposures.remove(id);
             filteredItems.remove(id);
             CatalogClient.removeExposure(id);
         }
@@ -795,10 +799,9 @@ public class CatalogScreen extends Screen {
         lines.add(Component.literal(idOrTextureStr));
 
         thumbnail.idOrTexture().ifLeft(exposureId -> {
-            ExposureClient.getExposureStorage().getOrQuery(exposureId).ifPresent(data -> {
-                CompoundTag properties = data.getProperties();
-
-                long timestampSeconds = properties.getLong(ExposureSavedData.TIMESTAMP_PROPERTY);
+            @Nullable ExposureInfo exposureInfo = CatalogClient.getExposures().get(exposureId);
+            if (exposureInfo != null) {
+                long timestampSeconds = exposureInfo.getTimestampUnixSeconds();
                 if (timestampSeconds > 0) {
                     Date date = new Date(timestampSeconds * 1000L);
                     String pattern = "yyyy-MM-dd HH:mm:ss";
@@ -807,11 +810,11 @@ public class CatalogScreen extends Screen {
                     lines.add(Component.literal(format1).withStyle(ChatFormatting.GRAY));
                 }
 
-                lines.add(Component.literal(data.getWidth() + "x" + data.getHeight()).withStyle(ChatFormatting.GRAY));
+                lines.add(Component.literal(exposureInfo.getWidth() + "x" + exposureInfo.getHeight()).withStyle(ChatFormatting.GRAY));
 
-                if (properties.getBoolean(ExposureSavedData.WAS_PRINTED_PROPERTY))
+                if (exposureInfo.wasPrinted())
                     lines.add(Component.literal("Printed").withStyle(ChatFormatting.GRAY));
-            });
+            }
         });
 
         lines.add(Component.empty());
@@ -864,6 +867,13 @@ public class CatalogScreen extends Screen {
         Component title = mode == Mode.EXPOSURES ? Component.translatable("gui.exposure_catalog.catalog.exposures")
                 : Component.translatable("gui.exposure_catalog.catalog.textures");
         guiGraphics.drawString(font, title, leftPos + 8, topPos + 8, 0xFF414141, false);
+
+        if (mode == Mode.EXPOSURES && !isLoading && !haveExposures) {
+            Component component = Component.translatable("gui.exposure_catalog.catalog.no_exposures");
+            int x = (thumbnailsArea.getX() + thumbnailsArea.getWidth() / 2) - font.width(component) / 2;
+            int y = (thumbnailsArea.getY() + thumbnailsArea.getHeight() / 2) - 5;
+            guiGraphics.drawString(font, component, x, y, 0xFF414141, false);
+        }
 
         // Count
         if (isLoading && mode == Mode.EXPOSURES) {
@@ -1003,23 +1013,9 @@ public class CatalogScreen extends Screen {
             return true;
         }
 
-        if (isThumbnailsGridFocused) {
-            if (keyCode == InputConstants.KEY_RETURN) {
-                int focusedThumbnailGlobalIndex = focusedThumbnailIndex + (topRowIndex * COLS);
-                if (!Screen.hasControlDown()) {
-                    openPhotographView(thumbnails.get(focusedThumbnailIndex).index());
-//                    if (selectedIndexes.contains(focusedThumbnailGlobalIndex))
-//                        selectedIndexes.remove(Integer.valueOf(focusedThumbnailGlobalIndex));
-//                    else {
-//                        selectedIndexes.add(focusedThumbnailGlobalIndex);
-//                        selectionStartIndex = focusedThumbnailGlobalIndex;
-//                    }
-//                    updateElements();
-//                } else {
-//                    openPhotographView(thumbnails.get(focusedThumbnailIndex).index());
-                }
-                return true;
-            }
+        if (isThumbnailsGridFocused && keyCode == InputConstants.KEY_RETURN) {
+            openPhotographView(thumbnails.get(focusedThumbnailIndex).index());
+            return true;
         }
 
         if (searchBox.canConsumeInput() && keyCode != InputConstants.KEY_TAB) {
@@ -1179,35 +1175,6 @@ public class CatalogScreen extends Screen {
         }
 
         focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-
-
-//            if (keyCode == InputConstants.KEY_LEFT) {
-//                int newIndex = focusedThumbnailIndex - 1;
-//                if (newIndex < 0 && topRowIndex > 0) {
-//                    scroll(-1);
-//                    focusedThumbnailIndex = COLS - 1;
-//                } else
-//                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-//            } else if (keyCode == InputConstants.KEY_RIGHT) {
-//                int newIndex = focusedThumbnailIndex + 1;
-//                if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
-//                    scroll(1);
-//                    focusedThumbnailIndex = ROWS * COLS - COLS;
-//                } else
-//                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-//            } else if (keyCode == InputConstants.KEY_UP) {
-//                int newIndex = focusedThumbnailIndex - COLS;
-//                if (newIndex < 0 && topRowIndex > 0) {
-//                    scroll(-1);
-//                } else
-//                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-//            } else if (keyCode == InputConstants.KEY_DOWN) {
-//                int newIndex = focusedThumbnailIndex + COLS;
-//                if (newIndex > thumbnails.size() - 1 && thumbnails.size() == ROWS * COLS) {
-//                    scroll(1);
-//                } else
-//                    focusedThumbnailIndex = Mth.clamp(newIndex, 0, thumbnails.size() - 1);
-//            }
 
         if (!Screen.hasShiftDown())
             selection.clear();

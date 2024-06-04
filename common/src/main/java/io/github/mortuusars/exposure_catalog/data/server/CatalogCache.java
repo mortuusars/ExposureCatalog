@@ -82,54 +82,58 @@ public class CatalogCache {
     protected synchronized void rebuildCache() {
         isBuilding.set(true);
 
-        DimensionDataStorage dataStorage = ((ServersideExposureStorageAccessor) ExposureServer.getExposureStorage())
-                .getLevelStorageSupplier().get();
-        dataStorage.save();
+        try {
+            DimensionDataStorage dataStorage = ((ServersideExposureStorageAccessor) ExposureServer.getExposureStorage())
+                    .getLevelStorageSupplier().get();
+            dataStorage.save();
 
-        clear();
+            clear();
 
-        exposuresFolder = ((ServersideExposureStorageAccessor) ExposureServer.getExposureStorage())
-                .getWorldPathSupplier().get().resolve("data/exposures/").toFile();
+            exposuresFolder = ((ServersideExposureStorageAccessor) ExposureServer.getExposureStorage())
+                    .getWorldPathSupplier().get().resolve("data/exposures/").toFile();
 
-        LOGGER.info("Building exposures cache...");
+            LOGGER.info("Building exposures cache...");
 
-        List<String> exposureIds = ExposureServer.getExposureStorage().getAllIds();
+            List<String> exposureIds = ExposureServer.getExposureStorage().getAllIds();
 
-        if (exposureIds.isEmpty()) {
-            LOGGER.info("No exposures have been found.");
-            return;
-        }
-
-        LOGGER.info("Loading {} exposures...", exposureIds.size());
-        long start = Util.getMillis();
-
-        List<List<String>> chunks = Lists.partition(exposureIds, 600);
-
-        List<Thread> threads = new ArrayList<>();
-
-        for (List<String> chunk : chunks) {
-            Thread thread = new Thread(() ->
-                    processExposures(chunk));
-            threads.add(thread);
-            thread.start();
-        }
-
-        for (Thread thread : threads) {
-            try {
-                thread.join();
-            } catch (InterruptedException e) {
-                LOGGER.error(e.toString());
+            if (exposureIds.isEmpty()) {
+                LOGGER.info("No exposures have been found.");
+                return;
             }
+
+            LOGGER.info("Loading {} exposures...", exposureIds.size());
+            long start = Util.getMillis();
+
+            List<List<String>> chunks = Lists.partition(exposureIds, 600);
+
+            List<Thread> threads = new ArrayList<>();
+
+            for (List<String> chunk : chunks) {
+                Thread thread = new Thread(() ->
+                        processExposures(chunk));
+                threads.add(thread);
+                thread.start();
+            }
+
+            for (Thread thread : threads) {
+                try {
+                    thread.join();
+                } catch (InterruptedException e) {
+                    LOGGER.error(e.toString());
+                }
+            }
+
+            LOGGER.info("{} exposures loaded in {}ms.", exposureIds.size(), Util.getMillis() - start);
+        } catch (Exception e) {
+            LOGGER.error("Error occurred when building exposures cache: " + e);
+        } finally {
+            isBuilding.set(false);
+
+            for (Runnable callback : callbacks) {
+                callback.run();
+            }
+            callbacks.clear();
         }
-
-        LOGGER.info("{} exposures loaded in {}ms.", exposureIds.size(), Util.getMillis() - start);
-
-        isBuilding.set(false);
-
-        for (Runnable callback : callbacks) {
-            callback.run();
-        }
-        callbacks.clear();
     }
 
     protected void processExposures(List<String> exposureIds) {
