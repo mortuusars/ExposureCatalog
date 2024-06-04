@@ -28,8 +28,8 @@ ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.exposure_catalog]]
-modId="jei"
-mandatory=false
-versionRange="[15.0.0.0,)"
+modId="exposure"
+mandatory=true
+versionRange="[1.6.0,)"
 ordering="NONE"
-side="CLIENT"
+side="BOTH"
