@@ -503,6 +503,7 @@ public class CatalogScreen extends Screen {
             exposures.remove(id);
             filteredItems.remove(id);
             CatalogClient.removeExposure(id);
+            scrollTo(topRowIndex);
         }
 
         selection.clear();
