@@ -44,6 +44,10 @@ repositories {
         name = "Fuzs Mod Resources"
         url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/"
     } // Forge Config API Port
+    maven {
+        name = 'LuckPerms'
+        url = 'https://oss.sonatype.org/content/repositories/snapshots'
+    } // Fabric Permissions API
 }
 
 dependencies {
@@ -58,6 +62,8 @@ dependencies {
     modRuntimeOnly "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forge_config_api_version}"
 
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-fabric:${jei_version}")
+
+    include(modImplementation("me.lucko:fabric-permissions-api:0.2-SNAPSHOT"))
 
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
     shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }

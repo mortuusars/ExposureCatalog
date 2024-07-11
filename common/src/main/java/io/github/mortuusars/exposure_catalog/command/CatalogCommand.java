@@ -3,6 +3,8 @@ package io.github.mortuusars.exposure_catalog.command;
 import com.google.common.base.Preconditions;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
+import io.github.mortuusars.exposure_catalog.Permissions;
+import io.github.mortuusars.exposure_catalog.PlatformHelper;
 import io.github.mortuusars.exposure_catalog.network.Packets;
 import io.github.mortuusars.exposure_catalog.network.packet.client.OpenCatalogS2CP;
 import net.minecraft.commands.CommandSourceStack;
@@ -14,7 +16,13 @@ public class CatalogCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
                 Commands.literal("exposure")
-                        .requires((commandSourceStack -> commandSourceStack.hasPermission(3)))
+                        .requires(
+                                (commandSourceStack -> {
+                                    if (!commandSourceStack.hasPermission(3)) {
+                                        PlatformHelper.checkPermission(commandSourceStack.getPlayer(), Permissions.CATALOG_COMMAND);
+                                    }
+                                    return true;
+                                }))
                         .then(Commands.literal("catalog")
                                 .executes(CatalogCommand::openCatalog)));
     }

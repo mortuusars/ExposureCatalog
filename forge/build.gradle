@@ -58,6 +58,10 @@ repositories {
             includeGroup "curse.maven"
         }
     }
+    maven {
+        name = 'LuckPerms'
+        url = 'https://oss.sonatype.org/content/repositories/snapshots'
+    } // Forge Permissions API
 }
 
 dependencies {
@@ -67,6 +71,8 @@ dependencies {
     modImplementation("io.github.mortuusars:exposure-forge:${exposure_version}")
 
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-forge:${jei_version}") { transitive = false }
+
+    include(modImplementation("me.lucko:forge-permissions-api:0.2-SNAPSHOT"))
 
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
     shadowCommon(project(path: ":common", configuration: "transformProductionForge")) { transitive = false }
