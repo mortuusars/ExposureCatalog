@@ -150,6 +150,7 @@ unifiedPublishing {
 
             relations {
                 depends "exposure"
+                depends "fabric-api"
             }
         }
 
@@ -161,6 +162,7 @@ unifiedPublishing {
 
             relations {
                 depends "exposure"
+                depends "fabric-api"
             }
         }
     }
