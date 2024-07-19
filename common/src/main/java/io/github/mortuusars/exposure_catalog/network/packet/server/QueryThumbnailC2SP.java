@@ -42,7 +42,7 @@ public record QueryThumbnailC2SP(String exposureId) implements IPacket {
 
         @Nullable ExposureThumbnail thumbnail = Catalog.getCache().getThumbnails().get(exposureId);
         if (thumbnail != null) {
-            Packets.sendToClient(new SendExposureThumbnailS2CP(exposureId, thumbnail), serverPlayer);
+            Packets.sendToClient(new SendExposureThumbnailS2CP(thumbnail), serverPlayer);
         }
 
         return true;

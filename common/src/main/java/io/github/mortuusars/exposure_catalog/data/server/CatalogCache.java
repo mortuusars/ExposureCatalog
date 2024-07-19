@@ -65,7 +65,7 @@ public class CatalogCache {
     public void addExposure(String exposureId, ExposureSavedData data) {
         ExposureInfo exposureData = createExposureData(exposureId, data);
         exposures.put(exposureId, exposureData);
-        ExposureThumbnail thumbnail = createThumbnail(data, getThumbnailSize());
+        ExposureThumbnail thumbnail = createThumbnail(exposureId, data, getThumbnailSize());
         thumbnails.put(exposureId, thumbnail);
     }
 
@@ -125,7 +125,7 @@ public class CatalogCache {
 
             LOGGER.info("{} exposures loaded in {}ms.", exposureIds.size(), Util.getMillis() - start);
         } catch (Exception e) {
-            LOGGER.error("Error occurred when building exposures cache: " + e);
+            LOGGER.error("Error occurred when building exposures cache: {}", e.toString());
         } finally {
             isBuilding.set(false);
 
@@ -146,7 +146,7 @@ public class CatalogCache {
             ExposureInfo exposureData = createExposureData(exposureId, savedData);
             exposures.put(exposureId, exposureData);
 
-            ExposureThumbnail thumbnail = createThumbnail(savedData, getThumbnailSize());
+            ExposureThumbnail thumbnail = createThumbnail(exposureId, savedData, getThumbnailSize());
             thumbnails.put(exposureId, thumbnail);
         }
     }
@@ -178,9 +178,9 @@ public class CatalogCache {
         return new File(exposuresFolder, name + ".dat");
     }
 
-    protected ExposureThumbnail createThumbnail(@Nullable ExposureSavedData exposure, int size) {
+    protected ExposureThumbnail createThumbnail(String exposureId, @Nullable ExposureSavedData exposure, int size) {
         if (exposure == null)
-            return new ExposureThumbnail(1, 1, new byte[]{0});
+            return new ExposureThumbnail(exposureId, 1, 1, new byte[]{0});
 
         float scaleFactorX = size / (float) exposure.getWidth();
         float scaleFactorY = size / (float) exposure.getHeight();
@@ -196,7 +196,7 @@ public class CatalogCache {
             }
         }
 
-        return new ExposureThumbnail(size, size, pixels);
+        return new ExposureThumbnail(exposureId, size, size, pixels);
     }
 
     protected ExposureInfo createExposureData(String exposureId, @Nullable ExposureSavedData savedData) {

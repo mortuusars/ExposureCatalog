@@ -33,7 +33,7 @@ public class ClientPacketsHandler {
 
     public static void receiveExposureThumbnail(SendExposureThumbnailS2CP packet) {
         executeOnMainThread(() -> {
-            CatalogClient.setThumbnail(packet.exposureId(), packet.thumbnail());
+            CatalogClient.setThumbnail(packet.thumbnail());
         });
     }
 }

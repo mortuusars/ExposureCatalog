@@ -10,7 +10,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
 
-public record SendExposureThumbnailS2CP(String exposureId, ExposureThumbnail thumbnail) implements IPacket {
+public record SendExposureThumbnailS2CP(ExposureThumbnail thumbnail) implements IPacket {
     public static final ResourceLocation ID = ExposureCatalog.resource("send_exposure_thumbnail");
 
     @Override
@@ -20,13 +20,12 @@ public record SendExposureThumbnailS2CP(String exposureId, ExposureThumbnail thu
 
     @Override
     public FriendlyByteBuf toBuffer(FriendlyByteBuf buffer) {
-        buffer.writeUtf(exposureId);
         thumbnail.toBuffer(buffer);
         return buffer;
     }
 
     public static SendExposureThumbnailS2CP fromBuffer(FriendlyByteBuf buffer) {
-        return new SendExposureThumbnailS2CP(buffer.readUtf(), ExposureThumbnail.fromBuffer(buffer));
+        return new SendExposureThumbnailS2CP(ExposureThumbnail.fromBuffer(buffer));
     }
 
     @Override

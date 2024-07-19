@@ -15,11 +15,14 @@ import io.github.mortuusars.exposure.camera.infrastructure.FrameData;
 import io.github.mortuusars.exposure.data.ExposureLook;
 import io.github.mortuusars.exposure.data.ExposureSize;
 import io.github.mortuusars.exposure.item.PhotographItem;
+import io.github.mortuusars.exposure.render.image.ExposureDataImage;
+import io.github.mortuusars.exposure.render.image.RenderedImageProvider;
+import io.github.mortuusars.exposure.render.image.TextureImage;
 import io.github.mortuusars.exposure.render.modifiers.ExposurePixelModifiers;
 import io.github.mortuusars.exposure.util.ItemAndStack;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
-import io.github.mortuusars.exposure_catalog.data.ExposureThumbnail;
+import io.github.mortuusars.exposure_catalog.data.ThumbnailRenderedImageProvider;
 import io.github.mortuusars.exposure_catalog.data.client.CatalogClient;
 import io.github.mortuusars.exposure_catalog.gui.Mode;
 import io.github.mortuusars.exposure_catalog.gui.Order;
@@ -41,6 +44,7 @@ import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.navigation.CommonInputs;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Rect2i;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -451,8 +455,7 @@ public class CatalogScreen extends Screen {
                     b -> exportExposures(exposureIds, exportSize, exportLook), CommonComponents.GUI_NO, b -> {
             });
             Minecraft.getInstance().setScreen(confirmScreen);
-        }
-        else {
+        } else {
             exportExposures(exposureIds, exportSize, exportLook);
         }
     }
@@ -646,8 +649,7 @@ public class CatalogScreen extends Screen {
                 } else {
                     filtered.clear();
                 }
-            }
-            else {
+            } else {
                 PlainTextSearchTree<String> tree = PlainTextSearchTree.create(filtered, String::lines);
                 filtered = new ArrayList<>(tree.search(query.toLowerCase(Locale.ROOT)));
             }
@@ -713,22 +715,12 @@ public class CatalogScreen extends Screen {
 
     protected void renderThumbnailsGrid(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         for (Thumbnail thumbnail : thumbnails) {
-
             MultiBufferSource.BufferSource bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
 
-            if (Minecraft.getInstance().isSingleplayer()) { // Loading full size images is ok in singleplayer
-                ExposureClient.getExposureRenderer().render(thumbnail.idOrTexture(), ExposurePixelModifiers.EMPTY,
-                        guiGraphics.pose(), bufferSource, thumbnail.area().getX(), thumbnail.area().getY(),
-                        thumbnail.area().getWidth(), thumbnail.area().getHeight());
-            } else {
-                thumbnail.idOrTexture
-                        .ifLeft(exposureId ->
-                                renderExposureThumbnail(guiGraphics, bufferSource, exposureId, thumbnail.area()))
-                        .ifRight(texture ->
-                                ExposureClient.getExposureRenderer().render(thumbnail.idOrTexture(), ExposurePixelModifiers.EMPTY,
-                                        guiGraphics.pose(), bufferSource, thumbnail.area().getX(), thumbnail.area().getY(),
-                                        thumbnail.area().getWidth(), thumbnail.area().getHeight()));
-            }
+            RenderedImageProvider thumbnailImageProvider = getThumbnailImage(thumbnail);
+            ExposureClient.getExposureRenderer().render(thumbnailImageProvider, ExposurePixelModifiers.EMPTY,
+                    guiGraphics.pose(), bufferSource, thumbnail.area().getX(), thumbnail.area().getY(),
+                    thumbnail.area().getWidth(), thumbnail.area().getHeight(), LightTexture.FULL_BRIGHT, 255, 255, 255, 255);
 
             bufferSource.endBatch();
 
@@ -743,17 +735,22 @@ public class CatalogScreen extends Screen {
         }
     }
 
-    protected void renderExposureThumbnail(GuiGraphics guiGraphics, MultiBufferSource bufferSource, String exposureId, Rect2i area) {
-        @Nullable ExposureThumbnail thumbnail;
-        if (Util.getMillis() - lastScrolledTime < 250)
-            thumbnail = CatalogClient.getThumbnail(exposureId).orElse(null);
-        else
-            thumbnail = CatalogClient.getOrQueryThumbnail(exposureId).orElse(null);
+    protected RenderedImageProvider getThumbnailImage(Thumbnail thumbnail) {
+        return thumbnail.idOrTexture().map(
+                exposureId -> {
+                    if (Minecraft.getInstance().isSingleplayer()) {
+                        // Loading full size images is ok in singleplayer
+                        return ExposureClient.getExposureStorage().getOrQuery(exposureId)
+                                .map(data -> new RenderedImageProvider(new ExposureDataImage(exposureId, data)))
+                                .orElse(RenderedImageProvider.EMPTY);
+                    }
 
-        if (thumbnail == null) return;
-
-        CatalogClient.getThumbnailRenderer().render(exposureId, thumbnail, ExposurePixelModifiers.EMPTY,
-                guiGraphics.pose(), bufferSource, area.getX(), area.getY(), area.getWidth(), area.getHeight());
+                    return (Util.getMillis() - lastScrolledTime < 250 ?
+                            CatalogClient.getThumbnail(exposureId) : CatalogClient.getOrQueryThumbnail(exposureId))
+                            .map(th -> (RenderedImageProvider)new ThumbnailRenderedImageProvider(th))
+                            .orElse(RenderedImageProvider.EMPTY);
+                },
+                texture -> new RenderedImageProvider(TextureImage.getTexture(texture)));
     }
 
     protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -770,8 +767,7 @@ public class CatalogScreen extends Screen {
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.printed"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.filters"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.invert"));
-            }
-            else
+            } else
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.control_info"));
 
             guiGraphics.renderTooltip(font, lines, Optional.empty(), mouseX, mouseY);
@@ -1316,7 +1312,7 @@ public class CatalogScreen extends Screen {
                 throw e;
             }
         } catch (Exception e) {
-            LogUtils.getLogger().error("Cannot load catalog state: " + e);
+            LogUtils.getLogger().error("Cannot load catalog state: {}", e.toString());
         }
     }
 }

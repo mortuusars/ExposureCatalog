@@ -64,7 +64,7 @@ dependencies {
     forge "net.minecraftforge:forge:${forge_version}"
     // ExposureCatalog does not depend on Architectury API:
     // modApi "dev.architectury:architectury-forge:${rootProject.architectury_version}"
-    modImplementation("io.github.mortuusars:exposure-forge:${exposure_version}")
+    modImplementation("io.github.mortuusars.exposure:exposure-forge:${exposure_version}")
 
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-forge:${jei_version}") { transitive = false }
 

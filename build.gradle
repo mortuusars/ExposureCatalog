@@ -1,6 +1,6 @@
 plugins {
     id "architectury-plugin" version "3.4-SNAPSHOT"
-    id "dev.architectury.loom" version "1.5-SNAPSHOT" apply false
+    id "dev.architectury.loom" version "1.6-SNAPSHOT" apply false
 }
 
 architectury {
@@ -96,8 +96,8 @@ allprojects {
             url = "https://maven.terraformersmc.com/"
         }
         maven {
-            name = "Mortuusars Mod Resources"
-            url = "https://raw.githubusercontent.com/mortuusars/pages/main/modresources/maven/repository/"
+            name = "Mortuusars Github Maven"
+            url = "https://raw.githubusercontent.com/mortuusars/resources/main/maven/"
         }
     }
 

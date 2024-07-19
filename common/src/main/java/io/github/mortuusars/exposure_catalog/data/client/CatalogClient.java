@@ -6,7 +6,6 @@ import io.github.mortuusars.exposure_catalog.gui.screen.CatalogScreen;
 import io.github.mortuusars.exposure_catalog.gui.screen.OverlayScreen;
 import io.github.mortuusars.exposure_catalog.network.Packets;
 import io.github.mortuusars.exposure_catalog.network.packet.server.QueryThumbnailC2SP;
-import io.github.mortuusars.exposure_catalog.render.ThumbnailRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import org.jetbrains.annotations.Nullable;
@@ -17,7 +16,6 @@ public class CatalogClient {
     private static final Map<String, ExposureInfo> exposures = new HashMap<>();
     private static final Map<String, ExposureThumbnail> thumbnails = new HashMap<>();
     private static final List<String> queriedThumbnails = new ArrayList<>();
-    private static final ThumbnailRenderer thumbnailRenderer = new ThumbnailRenderer();
 
     public static Map<String, ExposureInfo> getExposures() {
         return exposures;
@@ -25,10 +23,6 @@ public class CatalogClient {
 
     public static Map<String, ExposureThumbnail> getThumbnails() {
         return thumbnails;
-    }
-
-    public static ThumbnailRenderer getThumbnailRenderer() {
-        return thumbnailRenderer;
     }
 
     public static Optional<ExposureThumbnail> getThumbnail(String exposureId) {
@@ -50,9 +44,9 @@ public class CatalogClient {
         return Optional.of(thumbnail);
     }
 
-    public static void setThumbnail(String exposureId, ExposureThumbnail thumbnail) {
-        thumbnails.put(exposureId, thumbnail);
-        queriedThumbnails.remove(exposureId);
+    public static void setThumbnail(ExposureThumbnail thumbnail) {
+        thumbnails.put(thumbnail.getImageId(), thumbnail);
+        queriedThumbnails.remove(thumbnail.getImageId());
     }
 
     public static void setExposures(List<ExposureInfo> exposuresList) {

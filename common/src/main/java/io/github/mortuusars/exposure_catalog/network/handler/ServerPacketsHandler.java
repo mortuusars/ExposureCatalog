@@ -6,8 +6,8 @@ import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.ExposureServer;
 import io.github.mortuusars.exposure.data.ExposureLook;
 import io.github.mortuusars.exposure.data.ExposureSize;
-import io.github.mortuusars.exposure.data.storage.ExposureExporter;
 import io.github.mortuusars.exposure.data.storage.ExposureSavedData;
+import io.github.mortuusars.exposure.data.storage.ServersideExposureExporter;
 import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposuresC2SP;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -105,7 +105,7 @@ public class ServerPacketsHandler {
             ExposureSavedData exposureSavedData = data.get();
             String name = exposureId + look.getIdSuffix();
 
-            boolean saved = new ExposureExporter(name)
+            boolean saved = new ServersideExposureExporter(name)
                     .withFolder(folder.getAbsolutePath())
                     .withModifier(look.getModifier())
                     .withSize(size)

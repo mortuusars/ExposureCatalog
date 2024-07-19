@@ -52,7 +52,7 @@ dependencies {
     // ExposureCatalog does not depend on the Architectury API:
     // modApi "dev.architectury:architectury-fabric:${rootProject.architectury_version}"
     modImplementation("net.fabricmc.fabric-api:fabric-api:${fabric_api_version}")
-    modImplementation("io.github.mortuusars:exposure-fabric:${exposure_version}")
+    modImplementation("io.github.mortuusars.exposure:exposure-fabric:${exposure_version}")
 
     // forgeconfigapiport is needed for Exposure to run:
     modRuntimeOnly "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forge_config_api_version}"
