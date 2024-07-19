@@ -5,7 +5,5 @@
 - Fixed error when trying to export exposures on a dedicated server.
 - Small improvements to the Catalog GUI.
 
----
-
 # 1.0.0
 - Release
