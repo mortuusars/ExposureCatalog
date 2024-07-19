@@ -21,6 +21,8 @@ dependencies {
     // modApi "dev.architectury:architectury:${rootProject.architectury_version}"
     modCompileOnly("curse.maven:architectury-${architectury_cf_version}")
     modCompileOnly("io.github.mortuusars.exposure:exposure-common:${exposure_version}")
+
+    compileOnly("net.luckperms:api:${luckperms_api_version}")
 }
 
 publishing {

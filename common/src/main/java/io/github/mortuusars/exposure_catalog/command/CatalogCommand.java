@@ -14,15 +14,12 @@ import org.jetbrains.annotations.Nullable;
 
 public class CatalogCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        //noinspection ConstantValue
         dispatcher.register(
                 Commands.literal("exposure")
-                        .requires(
-                                (commandSourceStack -> {
-                                    if (!commandSourceStack.hasPermission(3)) {
-                                        PlatformHelper.checkPermission(commandSourceStack.getPlayer(), Permissions.CATALOG_COMMAND);
-                                    }
-                                    return true;
-                                }))
+                        .requires(stack ->
+                                stack.hasPermission(3)
+                                        || PlatformHelper.checkPermission(stack.getPlayer(), Permissions.CATALOG_COMMAND))
                         .then(Commands.literal("catalog")
                                 .executes(CatalogCommand::openCatalog)));
     }

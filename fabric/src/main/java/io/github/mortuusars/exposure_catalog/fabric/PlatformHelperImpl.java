@@ -43,6 +43,6 @@ public class PlatformHelperImpl {
     }
 
     public static boolean checkPermission(ServerPlayer player, String permission) {
-        return Permissions.check(player, permission);
+        return LuckPermsIntegration.checkPermission(player, permission);
     }
 }
