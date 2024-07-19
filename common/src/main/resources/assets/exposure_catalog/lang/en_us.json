@@ -16,7 +16,7 @@
   "gui.exposure_catalog.catalog.export.look.negative": " Negative",
   "gui.exposure_catalog.catalog.export.look.negative_film": " Negative Film",
   "gui.exposure_catalog.catalog.export.look.regular": " Regular",
-  "gui.exposure_catalog.catalog.export.selected": "Export Selected §8[Ctrl+E]",
+  "gui.exposure_catalog.catalog.export.selected": "Export Selected",
   "gui.exposure_catalog.catalog.export.size": "§7Size §8[Ctrl]",
   "gui.exposure_catalog.catalog.export.size.x1": " X1",
   "gui.exposure_catalog.catalog.export.size.x2": " X2",

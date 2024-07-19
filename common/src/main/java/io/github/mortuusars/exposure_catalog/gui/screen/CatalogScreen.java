@@ -750,7 +750,10 @@ public class CatalogScreen extends Screen {
                             .map(th -> (RenderedImageProvider)new ThumbnailRenderedImageProvider(th))
                             .orElse(RenderedImageProvider.EMPTY);
                 },
-                texture -> new RenderedImageProvider(TextureImage.getTexture(texture)));
+                texture -> {
+                    @Nullable TextureImage tex = TextureImage.getTexture(texture);
+                    return tex != null ? new RenderedImageProvider(tex) : RenderedImageProvider.EMPTY;
+                });
     }
 
     protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -903,13 +906,13 @@ public class CatalogScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (getFocused() == searchBox && !searchBox.isMouseOver(mouseX, mouseY))
-            setFocused(null);
+//        if (getFocused() == searchBox && !searchBox.isMouseOver(mouseX, mouseY))
+//            setFocused(null);
 
-        if (isThumbnailsGridFocused) {
+//        if (isThumbnailsGridFocused) {
             setFocused(null);
             isThumbnailsGridFocused = false;
-        }
+//        }
 
         if (button == InputConstants.MOUSE_BUTTON_RIGHT && searchBox.isMouseOver(mouseX, mouseY)) {
             String value = searchBox.getValue();
@@ -928,30 +931,39 @@ public class CatalogScreen extends Screen {
         if (button == InputConstants.MOUSE_BUTTON_MIDDLE)
             return false;
 
-        for (Thumbnail thumbnail : thumbnails) {
-            if (!thumbnail.isMouseOver(mouseX, mouseY))
-                continue;
+        if (isMouseOver(thumbnailsArea, mouseX, mouseY)) {
+            for (Thumbnail thumbnail : thumbnails) {
+                if (!thumbnail.isMouseOver(mouseX, mouseY))
+                    continue;
 
-            if (Screen.hasControlDown() || button == InputConstants.MOUSE_BUTTON_RIGHT) {
-                if (Screen.hasShiftDown()) {
-                    int start = Math.min(thumbnail.index(), selection.getLastSelectedIndex());
-                    int end = Math.max(thumbnail.index(), selection.getLastSelectedIndex());
-                    for (int i = start; i <= end; i++) {
-                        if (!selection.get().contains(i))
-                            selection.select(i);
+                if (Screen.hasControlDown() || button == InputConstants.MOUSE_BUTTON_RIGHT) {
+                    if (Screen.hasShiftDown()) {
+                        int start = Math.min(thumbnail.index(), selection.getLastSelectedIndex());
+                        int end = Math.max(thumbnail.index(), selection.getLastSelectedIndex());
+                        for (int i = start; i <= end; i++) {
+                            if (!selection.get().contains(i))
+                                selection.select(i);
+                        }
+                    } else {
+                        if (selection.get().contains(thumbnail.index))
+                            selection.remove(thumbnail.index());
+                        else {
+                            selection.select(thumbnail.index());
+                        }
                     }
+                    updateElements();
                 } else {
-                    if (selection.get().contains(thumbnail.index))
-                        selection.remove(thumbnail.index());
-                    else {
-                        selection.select(thumbnail.index());
-                    }
+                    openPhotographView(thumbnail.index());
                 }
-                updateElements();
-            } else {
-                openPhotographView(thumbnail.index());
+
+                return true;
             }
-            return true;
+
+            if (!selection.isEmpty()) {
+                selection.clear();
+                updateThumbnailsGrid();
+                return true;
+            }
         }
 
         if (canScroll()) {

@@ -16,7 +16,7 @@
   "gui.exposure_catalog.catalog.export.look.negative": "Негатив",
   "gui.exposure_catalog.catalog.export.look.negative_film": "Негатив на плівці",
   "gui.exposure_catalog.catalog.export.look.regular": "Звичайний",
-  "gui.exposure_catalog.catalog.export.selected": "Експортувати обрані §8[Ctrl+E]",
+  "gui.exposure_catalog.catalog.export.selected": "Експортувати обрані",
   "gui.exposure_catalog.catalog.export.size": "§7Розмір §8[Ctrl]",
   "gui.exposure_catalog.catalog.export.size.x1": " X1",
   "gui.exposure_catalog.catalog.export.size.x2": " X2",
