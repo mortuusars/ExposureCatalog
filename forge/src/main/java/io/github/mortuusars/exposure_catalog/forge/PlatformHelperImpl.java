@@ -16,4 +16,8 @@ public class PlatformHelperImpl {
     public static boolean isModLoaded(String modId) {
         return ModList.get().isLoaded(modId);
     }
+
+    public static boolean checkPermission(ServerPlayer player, String permission) {
+        return Permissions.check(player, permission);
+    }
 }

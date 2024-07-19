@@ -1,5 +1,6 @@
 package io.github.mortuusars.exposure_catalog.fabric;
 
+import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.network.FriendlyByteBuf;
@@ -39,5 +40,9 @@ public class PlatformHelperImpl {
 
     public static boolean isModLoaded(String modId) {
         return FabricLoader.getInstance().isModLoaded(modId);
+    }
+
+    public static boolean checkPermission(ServerPlayer player, String permission) {
+        return Permissions.check(player, permission);
     }
 }

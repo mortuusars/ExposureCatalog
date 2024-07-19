@@ -17,4 +17,9 @@ public class PlatformHelper {
     public static boolean isModLoaded(String modId) {
         throw new AssertionError();
     }
+
+    @ExpectPlatform
+    public static boolean checkPermission(ServerPlayer player, String permission) {
+        throw new AssertionError();
+    }
 }
