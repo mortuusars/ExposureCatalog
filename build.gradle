@@ -114,3 +114,42 @@ allprojects {
         withSourcesJar()
     }
 }
+
+/**
+ * Gets the first part (topmost) of a changelog file.
+ * Expects it to be in the following format:
+ * [
+ *  ## latest version
+ *      changes
+ *
+ *  ## older version
+ *      changes
+ * ]
+ * Will return an empty string if failed.
+ */
+def getLatestVersionChangelog() {
+    def changelogFileName = 'CHANGELOG.md'
+    def changelogFile = file(changelogFileName)
+    if (changelogFile.exists()) {
+        def changelogContent = changelogFile.text
+        def changelogParts = changelogContent.split(/(?m)^##\s/)
+
+        if (changelogParts.size() > 1) {
+            return "## " + changelogParts[1].trim() // First part will always be second in the list
+        } else {
+            println("[WARN] Changelog does not contain any versions.")
+            return ""
+        }
+    } else {
+        println("[WARN] Changelog file <${changelogFileName}> does not exist.")
+        return ""
+    }
+}
+
+project.ext.changelog = getLatestVersionChangelog()
+
+task printLatestVersionChangelog {
+    doLast {
+        println project.changelog
+    }
+}

@@ -28,13 +28,19 @@ dependencies {
 publishing {
     publications {
         mavenCommon(MavenPublication) {
-            artifactId = rootProject.mod_id
+            artifactId = mod_id + "-" + project.name
             from components.java
         }
     }
 
     // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
     repositories {
-        // Add repositories to publish to here.
+        var path = System.getenv("LOCAL_MAVEN")
+        if (path != null) {
+            maven {
+                name = 'local'
+                url = uri(path + "/maven")
+            }
+        }
     }
 }

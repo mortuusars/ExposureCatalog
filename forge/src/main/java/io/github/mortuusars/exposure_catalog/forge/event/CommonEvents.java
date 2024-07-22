@@ -2,10 +2,12 @@ package io.github.mortuusars.exposure_catalog.forge.event;
 
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.command.CatalogCommand;
+import io.github.mortuusars.exposure_catalog.forge.ForgePermissions;
 import io.github.mortuusars.exposure_catalog.network.forge.PacketsImpl;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.server.permission.events.PermissionGatherEvent;
 
 public class CommonEvents {
     public static class ModBus {
@@ -17,16 +19,6 @@ public class CommonEvents {
                 ExposureCatalog.Stats.register();
             });
         }
-
-//        @SubscribeEvent
-//        public static void onCreativeTabsBuild(BuildCreativeModeTabContentsEvent event) {
-//            if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
-//
-//            }
-//
-//            if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
-//            }
-//        }
     }
 
     public static class ForgeBus {
@@ -35,11 +27,9 @@ public class CommonEvents {
             CatalogCommand.register(event.getDispatcher());
         }
 
-//        @SubscribeEvent
-//        public static void onServerTick(TickEvent.ServerTickEvent event) {
-//            if (event.phase == TickEvent.Phase.END) {
-//                CatalogExposureSender.serverTick(event.getServer());
-//            }
-//        }
+        @SubscribeEvent
+        public static void registerPermissions(PermissionGatherEvent.Nodes event) {
+            event.addNodes(ForgePermissions.CATALOG_COMMAND);
+        }
     }
 }

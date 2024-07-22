@@ -146,7 +146,7 @@ unifiedPublishing {
     project {
         displayName = "${mod_name} - Forge ${minecraft_version} - ${mod_version}" // Optional, name of the file
         version = mod_version // Optional, Inferred from project by default
-        changelog = "https://github.com/mortuusars/ExposureCatalog/blob/${minecraft_version}/CHANGELOG.md" // Optional, in markdown format
+        changelog = rootProject.ext.changelog
         releaseType = mod_release_type // Optional, use "release", "beta" or "alpha"
         gameVersions = [minecraft_version]
         gameLoaders = ["forge", "neoforge"]
