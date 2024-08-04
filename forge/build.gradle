@@ -73,28 +73,6 @@ dependencies {
     shadowCommon(project(path: ":common", configuration: "transformProductionForge")) { transitive = false }
 }
 
-processResources {
-    // input variables of this task:
-    var replaceProperties = [
-            minecraft_version    : minecraft_version,
-
-            mod_id               : mod_id,
-            mod_name             : mod_name,
-            mod_version          : mod_version,
-            mod_license          : mod_license,
-            mod_authors          : mod_authors,
-            mod_description      : mod_description,
-            mod_homepage         : mod_homepage,
-            mod_github           : mod_github,
-    ]
-    // setting them as input
-    inputs.properties replaceProperties
-
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta', 'update.json']) {
-        expand replaceProperties + [project: project]
-    }
-}
-
 shadowJar {
     exclude "fabric.mod.json"
     exclude "architectury.common.json"

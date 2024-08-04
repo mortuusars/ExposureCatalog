@@ -30,6 +30,6 @@
     "minecraft": "=1.20.1",
     "fabric": "*",
     "fabric-api": ">=0.88.1",
-    "exposure": ">=1.7.3"
+    "exposure": "${required_exposure_version_range_fabric}"
   }
 }

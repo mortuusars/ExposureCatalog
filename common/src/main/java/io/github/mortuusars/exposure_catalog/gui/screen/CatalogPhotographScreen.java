@@ -7,6 +7,7 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.datafixers.util.Either;
 import io.github.mortuusars.exposure.Exposure;
 import io.github.mortuusars.exposure.ExposureClient;
+import io.github.mortuusars.exposure.camera.infrastructure.FrameData;
 import io.github.mortuusars.exposure.gui.screen.ZoomableScreen;
 import io.github.mortuusars.exposure.gui.screen.element.Pager;
 import io.github.mortuusars.exposure.item.PhotographItem;
@@ -23,7 +24,6 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -105,14 +105,14 @@ public class CatalogPhotographScreen extends ZoomableScreen implements OverlaySc
 
         ItemAndStack<PhotographItem> photograph = photographs.get(pager.getCurrentPage());
 
-        Either<String, ResourceLocation> idOrTexture = photograph.getItem().getIdOrTexture(photograph.getStack());
-        if (minecraft.player != null && minecraft.player.isCreative() && idOrTexture != null) {
+        Either<String, ResourceLocation> idOrTexture = FrameData.getIdOrTexture(photograph.getStack());
+        String exposureName = idOrTexture.map(id -> id, ResourceLocation::toString);
+        if (minecraft.player != null && minecraft.player.isCreative() && !exposureName.isEmpty()) {
             guiGraphics.drawString(font, "?", width - font.width("?") - 10, 10, 0xFFFFFFFF);
 
             if (mouseX > width - 20 && mouseX < width && mouseY < 20) {
                 List<Component> lines = new ArrayList<>();
 
-                String exposureName = idOrTexture.map(id -> id, ResourceLocation::toString);
                 lines.add(Component.literal(exposureName));
 
                 lines.add(Component.translatable("gui.exposure.photograph_screen.drop_as_item_tooltip", Component.literal("CTRL + I")));
@@ -138,11 +138,11 @@ public class CatalogPhotographScreen extends ZoomableScreen implements OverlaySc
             ItemAndStack<PhotographItem> photograph = photographs.get(pager.getCurrentPage());
 
             if (keyCode == InputConstants.KEY_C) {
-                @Nullable Either<String, ResourceLocation> idOrTexture = photograph.getItem().getIdOrTexture(photograph.getStack());
-                if (idOrTexture != null) {
-                    String text = idOrTexture.map(id -> id, ResourceLocation::toString);
-                    Minecraft.getInstance().keyboardHandler.setClipboard(text);
-                    player.displayClientMessage(Component.translatable("gui.exposure.photograph_screen.copied_message", text), false);
+                Either<String, ResourceLocation> idOrTexture = FrameData.getIdOrTexture(photograph.getStack());
+                String exposureId = idOrTexture.map(id -> id, ResourceLocation::toString);
+                if (!exposureId.isEmpty()) {
+                    Minecraft.getInstance().keyboardHandler.setClipboard(exposureId);
+                    player.displayClientMessage(Component.translatable("gui.exposure.photograph_screen.copied_message", exposureId), false);
                 }
                 return true;
             }

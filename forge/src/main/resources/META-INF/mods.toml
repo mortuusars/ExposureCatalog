@@ -30,6 +30,6 @@ side = "BOTH"
 [[dependencies.exposure_catalog]]
 modId="exposure"
 mandatory=true
-versionRange="[1.7.3,)"
+versionRange="${required_exposure_version_range_forge}"
 ordering="NONE"
 side="BOTH"
