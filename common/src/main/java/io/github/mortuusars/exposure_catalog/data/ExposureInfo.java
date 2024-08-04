@@ -8,19 +8,21 @@ public class ExposureInfo {
     protected final int width, height;
     protected final FilmType type;
     protected final boolean wasPrinted;
+    protected final boolean isLoadedFromFile;
     protected final long timestampUnixSeconds;
 
-    public ExposureInfo(String exposureId, int width, int height, FilmType type, boolean wasPrinted, long timestampUnixSeconds) {
+    public ExposureInfo(String exposureId, int width, int height, FilmType type, boolean wasPrinted, boolean isLoadedFromFile, long timestampUnixSeconds) {
         this.exposureId = exposureId;
         this.width = width;
         this.height = height;
         this.type = type;
         this.wasPrinted = wasPrinted;
+        this.isLoadedFromFile = isLoadedFromFile;
         this.timestampUnixSeconds = timestampUnixSeconds;
     }
 
     public static ExposureInfo empty(String exposureId) {
-        return new ExposureInfo(exposureId, 0, 0,  FilmType.COLOR, false, 0);
+        return new ExposureInfo(exposureId, 0, 0,  FilmType.COLOR, false, false, 0);
     }
 
     public boolean isEmpty() {
@@ -47,6 +49,10 @@ public class ExposureInfo {
         return wasPrinted;
     }
 
+    public boolean isLoadedFromFile() {
+        return isLoadedFromFile;
+    }
+
     public long getTimestampUnixSeconds() {
         return timestampUnixSeconds;
     }
@@ -57,6 +63,7 @@ public class ExposureInfo {
         buffer.writeInt(height);
         buffer.writeEnum(type);
         buffer.writeBoolean(wasPrinted);
+        buffer.writeBoolean(isLoadedFromFile);
         buffer.writeLong(timestampUnixSeconds);
         return buffer;
     }
@@ -67,6 +74,7 @@ public class ExposureInfo {
                 buffer.readInt(),
                 buffer.readInt(),
                 buffer.readEnum(FilmType.class),
+                buffer.readBoolean(),
                 buffer.readBoolean(),
                 buffer.readLong());
     }

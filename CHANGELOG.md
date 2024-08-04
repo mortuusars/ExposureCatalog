@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3 - 2024-08-04
+[Requires Exposure 1.7.5+]
+- Added `=projected` filter to show only exposures loaded from file with Interplanar Projector.
+- Fixed crash when clicking on an exposure in catalog.
+
 ## 1.0.2 - 2024-07-22
 - [Forge] Fixed permission error when trying to join a dedicated server. 
 

@@ -639,9 +639,13 @@ public class CatalogScreen extends Screen {
                 boolean negative = query.startsWith("!=");
                 String filter = query.substring(negative ? 2 : 1);
 
-                if (filter.length() > 1 && "printed".startsWith(filter)) {
+                if (filter.isEmpty()) {
+                    // Do nothing
+                } else if ("printed".startsWith(filter)) {
                     filtered.removeIf(id -> !CatalogClient.getExposures().get(id).wasPrinted() ^ negative);
-                } else if (filter.length() > 1 && "color".startsWith(filter)) {
+                } else if ("projected".startsWith(filter)) {
+                    filtered.removeIf(id -> !CatalogClient.getExposures().get(id).isLoadedFromFile() ^ negative);
+                } else if ("color".startsWith(filter)) {
                     filtered.removeIf(id -> CatalogClient.getExposures().get(id).getType() != FilmType.COLOR ^ negative);
                 } else if (filter.startsWith("x") && filter.length() > 1 && filter.substring(1).matches("^[0-9]+$")) {
                     int size = Integer.parseInt(filter.substring(1));
@@ -747,7 +751,7 @@ public class CatalogScreen extends Screen {
 
                     return (Util.getMillis() - lastScrolledTime < 250 ?
                             CatalogClient.getThumbnail(exposureId) : CatalogClient.getOrQueryThumbnail(exposureId))
-                            .map(th -> (RenderedImageProvider)new ThumbnailRenderedImageProvider(th))
+                            .map(th -> (RenderedImageProvider) new ThumbnailRenderedImageProvider(th))
                             .orElse(RenderedImageProvider.EMPTY);
                 },
                 texture -> {
@@ -768,6 +772,8 @@ public class CatalogScreen extends Screen {
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.size"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.color"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.printed"));
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.projected"));
+                lines.add(Component.empty());
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.filters"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.invert"));
             } else
@@ -814,6 +820,8 @@ public class CatalogScreen extends Screen {
 
                 if (exposureInfo.wasPrinted())
                     lines.add(Component.literal("Printed").withStyle(ChatFormatting.GRAY));
+                if (exposureInfo.isLoadedFromFile())
+                    lines.add(Component.literal("Projected").withStyle(ChatFormatting.GRAY));
             }
         });
 
@@ -910,8 +918,8 @@ public class CatalogScreen extends Screen {
 //            setFocused(null);
 
 //        if (isThumbnailsGridFocused) {
-            setFocused(null);
-            isThumbnailsGridFocused = false;
+        setFocused(null);
+        isThumbnailsGridFocused = false;
 //        }
 
         if (button == InputConstants.MOUSE_BUTTON_RIGHT && searchBox.isMouseOver(mouseX, mouseY)) {

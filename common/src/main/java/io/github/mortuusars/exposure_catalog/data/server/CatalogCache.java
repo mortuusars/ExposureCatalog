@@ -208,6 +208,7 @@ public class CatalogCache {
                 savedData.getHeight(),
                 savedData.getType(),
                 savedData.getProperties().getBoolean(ExposureSavedData.WAS_PRINTED_PROPERTY),
+                savedData.getProperties().getBoolean(ExposureSavedData.FROM_FILE_PROPERTY),
                 savedData.getProperties().getLong(ExposureSavedData.TIMESTAMP_PROPERTY));
     }
 }

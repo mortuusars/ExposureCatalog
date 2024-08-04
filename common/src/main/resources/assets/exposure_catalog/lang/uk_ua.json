@@ -57,6 +57,7 @@
   "gui.exposure_catalog.searchbar.tooltip.filters": "§8Кілька фільтрів можна розділяти пробілами",
   "gui.exposure_catalog.searchbar.tooltip.invert": "§8§7!=§8 інвертує фільтр",
   "gui.exposure_catalog.searchbar.tooltip.printed": "§8§7=printed§8 щоб показати тільки надруковані експозиції",
+  "gui.exposure_catalog.searchbar.tooltip.projected": "§8§7=projected§8 щоб показати тільки експозиції завантажені з файлу",
   "gui.exposure_catalog.searchbar.tooltip.size": "§8§7=x<size>]§8 щоб показати тільки експозиції вказаного розміру",
   "gui.exposure_catalog.thumbnail.tooltip.control_info": "§8Натисніть [§7Shift§8] для керування",
   "gui.exposure_catalog.thumbnail.tooltip.selection": "§8[§7Ctrl+Лівий клік§8] або [§7Правий клік§8], щоб вибрати/скасувати вибір",
