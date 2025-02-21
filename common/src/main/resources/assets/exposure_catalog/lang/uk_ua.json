@@ -24,6 +24,7 @@
   "gui.exposure_catalog.catalog.export.size.x4": " x4",
   "gui.exposure_catalog.catalog.export.size.x5": " x5",
   "gui.exposure_catalog.catalog.export.size.x6": " x6",
+  "gui.exposure_catalog.catalog.export_stop": "Зупинити експорт",
   "gui.exposure_catalog.catalog.exposure_delete_failed": "Не вдалося видалити '%s'",
   "gui.exposure_catalog.catalog.exposure_deleted": "Видалено '%s'",
   "gui.exposure_catalog.catalog.exposures": "Експозиції",

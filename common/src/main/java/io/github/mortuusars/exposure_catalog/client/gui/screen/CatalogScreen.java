@@ -72,6 +72,7 @@ import java.util.stream.IntStream;
 public class CatalogScreen extends Screen {
     public static final WidgetSprites REFRESH_BUTTON_SPRITES = Widgets.threeStateSprites(ExposureCatalog.resource("refresh"));
     public static final WidgetSprites EXPORT_BUTTON_SPRITES = Widgets.threeStateSprites(ExposureCatalog.resource("export"));
+    public static final WidgetSprites EXPORT_STOP_BUTTON_SPRITES = Widgets.threeStateSprites(ExposureCatalog.resource("export_stop"));
     public static final WidgetSprites DELETE_BUTTON_SPRITES = Widgets.threeStateSprites(ExposureCatalog.resource("delete"));
 
     public static final ResourceLocation TEXTURE = ExposureCatalog.resource("textures/gui/catalog.png");
@@ -105,6 +106,7 @@ public class CatalogScreen extends Screen {
     protected List<Thumbnail> thumbnails = Collections.synchronizedList(new ArrayList<>());
     protected Button refreshButton;
     protected Button exportButton;
+    protected Button exportStopButton;
     protected Button deleteButton;
 
     protected Mode mode = Mode.EXPOSURES;
@@ -336,6 +338,12 @@ public class CatalogScreen extends Screen {
         exportButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.export")));
         addRenderableWidget(exportButton);
 
+        exportStopButton = new ImageButton(leftPos + 26, topPos + 247, 12, 12, EXPORT_STOP_BUTTON_SPRITES, b -> ExportExposuresTask.stopCurrentTask());
+        exportStopButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.export_stop")
+                .append(" ")
+                .append(Component.translatable("gui.exposure_catalog.catalog.export.hotkey"))));
+        addRenderableWidget(exportStopButton);
+
         deleteButton = new ImageButton(leftPos + 342, topPos + 247, 12, 12, DELETE_BUTTON_SPRITES, b -> deleteExposures());
         deleteButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.delete")
                 .append(" ")
@@ -519,7 +527,10 @@ public class CatalogScreen extends Screen {
 
         sortingButton.active = mode == Mode.EXPOSURES;
 
-        exportButton.active = mode == Mode.EXPOSURES;
+        exportButton.visible = mode == Mode.EXPOSURES && !ExportExposuresTask.isRunning();
+        exportButton.active = mode == Mode.EXPOSURES && !ExportExposuresTask.isRunning();
+        exportStopButton.visible = ExportExposuresTask.isRunning();
+        exportStopButton.active = ExportExposuresTask.isRunning();
         deleteButton.active = mode == Mode.EXPOSURES && !selection.isEmpty();
 
         refreshButton.active = canRefresh();
@@ -686,7 +697,7 @@ public class CatalogScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        refreshButton.active = canRefresh();
+        updateButtons();
 
         renderTransparentBackground(guiGraphics);
 
@@ -1077,7 +1088,12 @@ public class CatalogScreen extends Screen {
                 return true;
             }
             if (keyCode == InputConstants.KEY_E) {
-                exportExposures();
+                if (ExportExposuresTask.isRunning()) {
+                    ExportExposuresTask.stopCurrentTask();
+                } else {
+                    exportExposures();
+                }
+
                 playClickSound();
                 return true;
             }

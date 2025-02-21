@@ -1,8 +1,8 @@
 package io.github.mortuusars.exposure_catalog.network.fabric;
 
-import io.github.mortuusars.exposure.network.packet.CommonPackets;
-import io.github.mortuusars.exposure.network.packet.Packet;
-import io.github.mortuusars.exposure.network.packet.S2CPackets;
+import io.github.mortuusars.exposure_catalog.network.packet.CommonPackets;
+import io.github.mortuusars.exposure_catalog.network.packet.Packet;
+import io.github.mortuusars.exposure_catalog.network.packet.S2CPackets;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

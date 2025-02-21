@@ -11,9 +11,9 @@ import java.util.List;
 public class S2CPackets {
     public static List<CustomPacketPayload.TypeAndCodec<? extends FriendlyByteBuf, ? extends CustomPacketPayload>> getDefinitions() {
         return List.of(
-            new CustomPacketPayload.TypeAndCodec<>(OpenCatalogS2CP.TYPE, OpenCatalogS2CP.STREAM_CODEC),
+                new CustomPacketPayload.TypeAndCodec<>(OpenCatalogS2CP.TYPE, OpenCatalogS2CP.STREAM_CODEC),
                 new CustomPacketPayload.TypeAndCodec<>(SendExposureInfosS2CP.TYPE, SendExposureInfosS2CP.STREAM_CODEC),
-            new CustomPacketPayload.TypeAndCodec<>(SendExposureThumbnailS2CP.TYPE, SendExposureThumbnailS2CP.STREAM_CODEC)
+                new CustomPacketPayload.TypeAndCodec<>(SendExposureThumbnailS2CP.TYPE, SendExposureThumbnailS2CP.STREAM_CODEC)
         );
     }
 }
