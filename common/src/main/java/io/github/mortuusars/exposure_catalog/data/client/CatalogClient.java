@@ -2,10 +2,10 @@ package io.github.mortuusars.exposure_catalog.data.client;
 
 import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
 import io.github.mortuusars.exposure_catalog.data.ExposureThumbnail;
-import io.github.mortuusars.exposure_catalog.gui.screen.CatalogScreen;
-import io.github.mortuusars.exposure_catalog.gui.screen.OverlayScreen;
+import io.github.mortuusars.exposure_catalog.client.gui.screen.CatalogScreen;
+import io.github.mortuusars.exposure_catalog.client.gui.screen.OverlayScreen;
 import io.github.mortuusars.exposure_catalog.network.Packets;
-import io.github.mortuusars.exposure_catalog.network.packet.server.QueryThumbnailC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.serverbound.QueryExposureThumbnailC2SP;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import org.jetbrains.annotations.Nullable;
@@ -36,7 +36,7 @@ public class CatalogClient {
         if (thumbnail == null) {
             if (!queriedThumbnails.contains(exposureId)) {
                 queriedThumbnails.add(exposureId);
-                Packets.sendToServer(new QueryThumbnailC2SP(exposureId));
+                Packets.sendToServer(new QueryExposureThumbnailC2SP(exposureId));
             }
             return Optional.empty();
         }
@@ -44,16 +44,16 @@ public class CatalogClient {
         return Optional.of(thumbnail);
     }
 
-    public static void setThumbnail(ExposureThumbnail thumbnail) {
-        thumbnails.put(thumbnail.getImageId(), thumbnail);
-        queriedThumbnails.remove(thumbnail.getImageId());
+    public static void setThumbnail(String id, ExposureThumbnail thumbnail) {
+        thumbnails.put(id, thumbnail);
+        queriedThumbnails.remove(id);
     }
 
-    public static void setExposures(List<ExposureInfo> exposuresList) {
+    public static void setExposures(List<ExposureInfo> exposureInfos) {
         exposures.clear();
 
-        for (ExposureInfo data : exposuresList) {
-            exposures.put(data.getExposureId(), data);
+        for (ExposureInfo data : exposureInfos) {
+            exposures.put(data.id(), data);
         }
 
         getCatalogScreen().ifPresent(catalogScreen -> catalogScreen.onExposuresReceived(exposures));

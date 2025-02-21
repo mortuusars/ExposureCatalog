@@ -1,9 +1,12 @@
 package io.github.mortuusars.exposure_catalog.fabric;
 
-import me.lucko.fabric.api.permissions.v0.Permissions;
+import io.github.mortuusars.exposure_catalog.Permissions;
+import io.netty.buffer.ByteBufUtil;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.MenuProvider;
@@ -16,8 +19,17 @@ import org.jetbrains.annotations.Nullable;
 import java.util.function.Consumer;
 
 public class PlatformHelperImpl {
-    public static void openMenu(ServerPlayer serverPlayer, MenuProvider menuProvider, Consumer<FriendlyByteBuf> extraDataWriter) {
-        ExtendedScreenHandlerFactory extendedScreenHandlerFactory = new ExtendedScreenHandlerFactory() {
+    public static void openMenu(ServerPlayer serverPlayer, MenuProvider menuProvider, Consumer<RegistryFriendlyByteBuf> extraDataWriter) {
+        ExtendedScreenHandlerFactory<byte[]> extendedScreenHandlerFactory = new ExtendedScreenHandlerFactory<byte[]>() {
+            @Override
+            public byte[] getScreenOpeningData(ServerPlayer player) {
+                RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(PacketByteBufs.create(), player.registryAccess());
+                extraDataWriter.accept(buffer);
+                byte[] bytes = ByteBufUtil.getBytes(buffer);
+                buffer.release();
+                return bytes;
+            }
+
             @Nullable
             @Override
             public AbstractContainerMenu createMenu(int i, @NotNull Inventory inventory, @NotNull Player player) {
@@ -28,11 +40,6 @@ public class PlatformHelperImpl {
             public @NotNull Component getDisplayName() {
                 return menuProvider.getDisplayName();
             }
-
-            @Override
-            public void writeScreenOpeningData(ServerPlayer player, FriendlyByteBuf buffer) {
-                extraDataWriter.accept(buffer);
-            }
         };
 
         serverPlayer.openMenu(extendedScreenHandlerFactory);
@@ -42,7 +49,11 @@ public class PlatformHelperImpl {
         return FabricLoader.getInstance().isModLoaded(modId);
     }
 
-    public static boolean checkPermission(ServerPlayer player, String permission) {
-        return LuckPermsIntegration.checkPermission(player, permission);
+    public static boolean isInDevEnv() {
+        return FabricLoader.getInstance().isDevelopmentEnvironment();
+    }
+
+    public static boolean checkCatalogCommandPermission(ServerPlayer player) {
+        return LuckPermsIntegration.checkPermission(player, Permissions.CATALOG_COMMAND);
     }
 }

@@ -1,20 +1,15 @@
 package io.github.mortuusars.exposure_catalog.data.server;
 
-import com.google.common.collect.Lists;
 import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.ExposureServer;
-import io.github.mortuusars.exposure.data.storage.ExposureSavedData;
+import io.github.mortuusars.exposure.world.level.storage.ExposureData;
 import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
-import io.github.mortuusars.exposure_catalog.mixin.ServersideExposureStorageAccessor;
 import io.github.mortuusars.exposure_catalog.network.Packets;
-import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
-import io.github.mortuusars.exposure_catalog.network.packet.client.SendExposuresDataPartS2CP;
+import io.github.mortuusars.exposure_catalog.network.packet.Packet;
+import io.github.mortuusars.exposure_catalog.network.packet.clientbound.SendExposureInfosS2CP;
 import net.minecraft.Util;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
@@ -50,36 +45,24 @@ public class Catalog {
         send(packet -> Packets.sendToClient(packet, player));
     }
 
-    public static void send(Consumer<IPacket> sender) {
+    public static void send(Consumer<Packet> sender) {
         List<ExposureInfo> exposures = CACHE.getExposures().values().stream().toList();
-
-        if (exposures.isEmpty()) {
-            sender.accept(new SendExposuresDataPartS2CP(0, true, exposures));
-        }
-        else {
-            List<List<ExposureInfo>> parts = Lists.partition(exposures, 2500);
-            for (int i = 0; i < parts.size(); i++) {
-                SendExposuresDataPartS2CP packet = new SendExposuresDataPartS2CP(i, i == parts.size() - 1, parts.get(i));
-                sender.accept(packet);
-            }
-        }
+        sender.accept(new SendExposureInfosS2CP(exposures));
     }
 
-    public static void onExposureSaved(String id, ExposureSavedData data) {
+    public static void onExposureSaved(String id, ExposureData data) {
         CACHE.addExposure(id, data);
     }
 
     public static boolean deleteExposure(String exposureId) {
         try {
-            Path path = ((ServersideExposureStorageAccessor) ExposureServer.getExposureStorage()).getWorldPathSupplier().get()
-                    .resolve("data/exposures/" + exposureId + ".dat");
-            if (Files.deleteIfExists(path)) {
-                LOGGER.info(exposureId + " deleted.");
+            if (ExposureServer.exposureRepository().delete(exposureId)) {
+                LOGGER.info("{} deleted.", exposureId);
                 CACHE.removeExposure(exposureId);
             }
             return true;
         } catch (Exception e) {
-            LOGGER.error("Deleting exposure failed: " + e);
+            LOGGER.error("Deleting exposure failed: ", e);
             return false;
         }
     }

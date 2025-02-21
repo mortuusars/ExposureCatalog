@@ -19,7 +19,12 @@ public class PlatformHelper {
     }
 
     @ExpectPlatform
-    public static boolean checkPermission(ServerPlayer player, String permission) {
+    public static boolean isInDevEnv() {
+        throw new AssertionError();
+    }
+
+    @ExpectPlatform
+    public static boolean checkCatalogCommandPermission(ServerPlayer player) {
         throw new AssertionError();
     }
 }

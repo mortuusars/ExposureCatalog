@@ -1,81 +1,25 @@
 package io.github.mortuusars.exposure_catalog.data;
 
-import io.github.mortuusars.exposure.camera.infrastructure.FilmType;
+import io.github.mortuusars.exposure.data.ColorPalettes;
+import io.github.mortuusars.exposure.world.level.storage.ExposureData;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.resources.ResourceLocation;
 
-public class ExposureInfo {
-    protected final String exposureId;
-    protected final int width, height;
-    protected final FilmType type;
-    protected final boolean wasPrinted;
-    protected final boolean isLoadedFromFile;
-    protected final long timestampUnixSeconds;
+public record ExposureInfo(String id, int width, int height, ResourceLocation paletteId, ExposureData.Tag tag) {
+    public static final ExposureInfo EMPTY = new ExposureInfo("", 0, 0, ColorPalettes.DEFAULT.location(), ExposureData.Tag.EMPTY);
 
-    public ExposureInfo(String exposureId, int width, int height, FilmType type, boolean wasPrinted, boolean isLoadedFromFile, long timestampUnixSeconds) {
-        this.exposureId = exposureId;
-        this.width = width;
-        this.height = height;
-        this.type = type;
-        this.wasPrinted = wasPrinted;
-        this.isLoadedFromFile = isLoadedFromFile;
-        this.timestampUnixSeconds = timestampUnixSeconds;
-    }
+    public static final StreamCodec<FriendlyByteBuf, ExposureInfo> STREAM_CODEC = StreamCodec.composite(
+            ByteBufCodecs.STRING_UTF8, ExposureInfo::id,
+            ByteBufCodecs.VAR_INT, ExposureInfo::width,
+            ByteBufCodecs.VAR_INT, ExposureInfo::height,
+            ResourceLocation.STREAM_CODEC, ExposureInfo::paletteId,
+            ExposureData.Tag.STREAM_CODEC, ExposureInfo::tag,
+            ExposureInfo::new
+    );
 
     public static ExposureInfo empty(String exposureId) {
-        return new ExposureInfo(exposureId, 0, 0,  FilmType.COLOR, false, false, 0);
-    }
-
-    public boolean isEmpty() {
-        return getWidth() == 0 && getHeight() == 0 && getTimestampUnixSeconds() == 0L;
-    }
-
-    public String getExposureId() {
-        return exposureId;
-    }
-
-    public int getWidth() {
-        return width;
-    }
-
-    public int getHeight() {
-        return height;
-    }
-
-    public FilmType getType() {
-        return type;
-    }
-
-    public boolean wasPrinted() {
-        return wasPrinted;
-    }
-
-    public boolean isLoadedFromFile() {
-        return isLoadedFromFile;
-    }
-
-    public long getTimestampUnixSeconds() {
-        return timestampUnixSeconds;
-    }
-
-    public FriendlyByteBuf toBuffer(FriendlyByteBuf buffer) {
-        buffer.writeUtf(exposureId);
-        buffer.writeInt(width);
-        buffer.writeInt(height);
-        buffer.writeEnum(type);
-        buffer.writeBoolean(wasPrinted);
-        buffer.writeBoolean(isLoadedFromFile);
-        buffer.writeLong(timestampUnixSeconds);
-        return buffer;
-    }
-
-    public static ExposureInfo fromBuffer(FriendlyByteBuf buffer) {
-        return new ExposureInfo(
-                buffer.readUtf(),
-                buffer.readInt(),
-                buffer.readInt(),
-                buffer.readEnum(FilmType.class),
-                buffer.readBoolean(),
-                buffer.readBoolean(),
-                buffer.readLong());
+        return new ExposureInfo(exposureId, 0, 0, ColorPalettes.DEFAULT.location(), ExposureData.Tag.EMPTY);
     }
 }
