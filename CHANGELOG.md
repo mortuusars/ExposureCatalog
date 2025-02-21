@@ -1,6 +1,7 @@
 # Changelog
 
 ## 1.1.0 - 2025-02-21
+[Requires Exposure 1.8.4+]
 - Updated to 1.21.1
 - Exporting now stores PNG on client's pc, instead of on the server.
 - "Stop Export" button will now show when export is in progress.
