@@ -172,3 +172,58 @@ task printLatestVersionChangelog {
         println project.changelog
     }
 }
+
+publishMods {
+    changelog = project.ext.changelog
+    type = STABLE
+    dryRun = providers.environmentVariable("CURSEFORGE_TOKEN").getOrNull() == null || providers.environmentVariable("MODRINTH_TOKEN").getOrNull() == null
+
+    def cfOptions = curseforgeOptions {
+        accessToken = providers.environmentVariable("CURSEFORGE_TOKEN")
+        projectId = mod_curseforge_project_id
+        minecraftVersions.add("${minecraft_version}")
+        javaVersions.add(JavaVersion.VERSION_21)
+        clientRequired = true
+        serverRequired = true
+    }
+
+    def mrOptions = modrinthOptions {
+        accessToken = providers.environmentVariable("MODRINTH_TOKEN")
+        projectId = mod_modrinth_project_id
+        minecraftVersions.add("${minecraft_version}")
+    }
+
+    curseforge("curseforgeNeoForge") {
+        from cfOptions
+        file project(":neoforge")
+        modLoaders.add("neoforge")
+        displayName = "${mod_name} - NeoForge ${minecraft_version} - ${mod_version}"
+        requires("exposure")
+    }
+
+    curseforge("curseforgeFabric") {
+        from cfOptions
+        file project(":fabric")
+        modLoaders.add("fabric")
+        displayName = "${mod_name} - Fabric ${minecraft_version} - ${mod_version}"
+        requires("fabric-api")
+        requires("exposure")
+    }
+
+    modrinth("modrinthNeoForge") {
+        from mrOptions
+        file project(":neoforge")
+        modLoaders.add("neoforge")
+        displayName = "${mod_name} - ${mod_version}"
+        requires("exposure")
+    }
+
+    modrinth("modrinthFabric") {
+        from mrOptions
+        file project(":fabric")
+        modLoaders.add("fabric")
+        displayName = "${mod_name} - ${mod_version}"
+        requires("fabric-api")
+        requires("exposure")
+    }
+}
