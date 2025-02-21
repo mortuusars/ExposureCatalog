@@ -645,9 +645,25 @@ public class CatalogScreen extends Screen {
                     filtered.removeIf(id -> !CatalogClient.getExposures().getOrDefault(id, ExposureInfo.EMPTY).tag().loaded() ^ negative);
                 } else if ("color".startsWith(filter)) {
                     filtered.removeIf(id -> CatalogClient.getExposures().getOrDefault(id, ExposureInfo.EMPTY).tag().type() != ExposureType.COLOR ^ negative);
-                } else if (filter.startsWith("x") && filter.length() > 1 && filter.substring(1).matches("^[0-9]+$")) {
-                    int size = Integer.parseInt(filter.substring(1));
-                    filtered.removeIf(id -> !(CatalogClient.getExposures().get(id).width() == size) ^ negative);
+                } else if ("bw".startsWith(filter)) {
+                    filtered.removeIf(id -> CatalogClient.getExposures().getOrDefault(id, ExposureInfo.EMPTY).tag().type() != ExposureType.BLACK_AND_WHITE ^ negative);
+                } else if (filter.startsWith("size:")) {
+                    String sizeStr = filter.substring(5);
+                    if (!sizeStr.isEmpty() && sizeStr.matches("^[0-9]+$")) {
+                        int size = Integer.parseInt(sizeStr);
+                        filtered.removeIf(id -> !(CatalogClient.getExposures().get(id).width() == size) ^ negative);
+                    }
+                } else if (filter.startsWith("palette:")) {
+                    String palette = filter.substring(8).toLowerCase();
+
+                    SearchTree<String> tree = SearchTree.plainText(filtered, id ->
+                            CatalogClient.getExposures().get(id).paletteId().toString().lines());
+                    ArrayList<String> matches = new ArrayList<>(tree.search(palette));
+                    if (negative) {
+                        filtered.removeAll(matches);
+                    } else {
+                        filtered = matches;
+                    }
                 } else {
                     filtered.clear();
                 }
@@ -766,10 +782,12 @@ public class CatalogScreen extends Screen {
 
             if (Screen.hasShiftDown()) {
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.size"));
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.palette"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.color"));
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.bw"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.printed"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.projected"));
-                lines.add(Component.empty());
+                lines.add(CommonComponents.EMPTY);
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.filters"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.invert"));
             } else
