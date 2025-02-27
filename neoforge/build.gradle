@@ -55,8 +55,6 @@ dependencies {
 }
 
 loom {
-//    accessWidenerPath.set(project(":common").loom.accessWidenerPath)
-
     runs {
         create("client2") {
             inherit(getByName("client"))
@@ -73,13 +71,12 @@ loom {
 }
 
 shadowJar {
+    exclude("architectury.common.json")
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
 }
 
 remapJar {
-//    injectAccessWidener = true
-//    atAccessWideners.add(loom.accessWidenerPath.get().asFile.name)
     input.set shadowJar.archiveFile
     dependsOn shadowJar
 }
