@@ -434,7 +434,10 @@ public class CatalogScreen extends Screen {
             refreshCooldownExpireTime = Util.getMillis() + (reload ? RELOAD_COOLDOWN_MS : REFRESH_COOLDOWN_MS);
         } else if (mode == Mode.TEXTURES) {
             Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
-            textures = resources.keySet().stream().map(ResourceLocation::toString).collect(Collectors.toCollection(ArrayList::new));
+            textures = resources.keySet().stream()
+                    .map(ResourceLocation::toString)
+                    .filter(s -> !s.endsWith(".license")) // Filter out some results that cause log spam when trying to load as image. Just hardcoding it for now.
+                    .collect(Collectors.toCollection(ArrayList::new));
             orderTexturesList(this.order);
             refreshSearchResults();
             updateElements();

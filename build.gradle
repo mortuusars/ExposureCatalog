@@ -41,13 +41,14 @@ subprojects {
             name = "ModMaven"
             url = "https://modmaven.dev"
         }
-        maven { url = "https://cursemaven.com" }
-        maven { // saps.dev Maven (KubeJS and Rhino)
-            url = "https://maven.saps.dev/releases"
+        maven {
+            url "https://maven.latvian.dev/releases"
             content {
                 includeGroup "dev.latvian.mods"
+                includeGroup "dev.latvian.apps"
             }
         }
+        maven { url = "https://cursemaven.com" }
         maven {
             name = "Mortuusars Github Maven"
             url = "https://raw.githubusercontent.com/mortuusars/resources/main/maven/"
@@ -121,13 +122,20 @@ subprojects {
             }
         }
 
-        // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
         repositories {
-            var path = System.getenv("LOCAL_MAVEN")
-            if (path != null) {
+            var localPath = System.getenv("MAVEN_LOCAL")
+            if (localPath != null) {
                 maven {
-                    name = 'local'
-                    url = uri(path + "/maven")
+                    name = 'mortuusarsLocal'
+                    url = uri(localPath + "/maven")
+                }
+            }
+
+            var resourcesPath = System.getenv("MAVEN_GITHUB_RESOURCES")
+            if (resourcesPath != null) {
+                maven {
+                    name = 'mortuusarsGithubResources'
+                    url = uri(resourcesPath + "/maven")
                 }
             }
         }

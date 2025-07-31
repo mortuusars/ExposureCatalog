@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.1 - 2025-07-31
+- Fixed log spam in "textures" mode with certain non-image files (happened with Modonomicon).
+
 ## 1.1.0 - 2025-02-21
 [Requires Exposure 1.8.4+]
 - Updated to 1.21.1
