@@ -1,8 +1,8 @@
 package io.github.mortuusars.exposure_catalog.network.fabric;
 
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
-import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
-import io.github.mortuusars.exposure_catalog.network.packet.client.*;
+import io.github.mortuusars.exposure_catalog.network.packet.Packet;
+import io.github.mortuusars.exposure_catalog.network.packet.clientbound.*;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
@@ -15,18 +15,18 @@ import java.util.function.Function;
 public class ClientPackets {
     public static void registerS2CPackets() {
         ClientPlayNetworking.registerGlobalReceiver(OpenCatalogS2CP.ID, new ClientHandler(OpenCatalogS2CP::fromBuffer));
-        ClientPlayNetworking.registerGlobalReceiver(SendExposuresDataPartS2CP.ID, new ClientHandler(SendExposuresDataPartS2CP::fromBuffer));
+        ClientPlayNetworking.registerGlobalReceiver(SendExposureInfosPartS2CP.ID, new ClientHandler(SendExposureInfosPartS2CP::fromBuffer));
         ClientPlayNetworking.registerGlobalReceiver(SendExposureThumbnailS2CP.ID, new ClientHandler(SendExposureThumbnailS2CP::fromBuffer));
     }
 
-    public static void sendToServer(IPacket packet) {
+    public static void sendToServer(Packet packet) {
         ClientPlayNetworking.send(packet.getId(), packet.toBuffer(PacketByteBufs.create()));
     }
 
-    private record ClientHandler(Function<FriendlyByteBuf, IPacket> decodeFunction) implements ClientPlayNetworking.PlayChannelHandler {
+    private record ClientHandler(Function<FriendlyByteBuf, Packet> decodeFunction) implements ClientPlayNetworking.PlayChannelHandler {
         @Override
         public void receive(Minecraft client, ClientPacketListener handler, FriendlyByteBuf buf, PacketSender responseSender) {
-            IPacket packet = decodeFunction.apply(buf);
+            Packet packet = decodeFunction.apply(buf);
             packet.handle(PacketDirection.TO_CLIENT, null);
         }
     }

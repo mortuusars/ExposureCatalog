@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 - 1.20.1 - 2026-02-23
+[Requires Exposure 1.9.14+]
+- Update to support Exposure backport.
+  - Should be on par with latest 1.21.1 Catalog feature-wise.
+
 ## 1.0.3 - 2024-08-04
 [Requires Exposure 1.7.5+]
 - Added `=projected` filter to show only exposures loaded from file with Interplanar Projector.

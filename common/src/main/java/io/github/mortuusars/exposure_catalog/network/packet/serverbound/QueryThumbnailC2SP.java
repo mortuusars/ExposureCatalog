@@ -1,4 +1,4 @@
-package io.github.mortuusars.exposure_catalog.network.packet.server;
+package io.github.mortuusars.exposure_catalog.network.packet.serverbound;
 
 import com.google.common.base.Preconditions;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
@@ -6,15 +6,15 @@ import io.github.mortuusars.exposure_catalog.data.ExposureThumbnail;
 import io.github.mortuusars.exposure_catalog.data.server.Catalog;
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
 import io.github.mortuusars.exposure_catalog.network.Packets;
-import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
-import io.github.mortuusars.exposure_catalog.network.packet.client.SendExposureThumbnailS2CP;
+import io.github.mortuusars.exposure_catalog.network.packet.Packet;
+import io.github.mortuusars.exposure_catalog.network.packet.clientbound.SendExposureThumbnailS2CP;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import org.jetbrains.annotations.Nullable;
 
-public record QueryThumbnailC2SP(String exposureId) implements IPacket {
+public record QueryThumbnailC2SP(String exposureId) implements Packet {
     public static final ResourceLocation ID = ExposureCatalog.resource("query_thumbnail");
 
     @Override
@@ -42,7 +42,7 @@ public record QueryThumbnailC2SP(String exposureId) implements IPacket {
 
         @Nullable ExposureThumbnail thumbnail = Catalog.getCache().getThumbnails().get(exposureId);
         if (thumbnail != null) {
-            Packets.sendToClient(new SendExposureThumbnailS2CP(thumbnail), serverPlayer);
+            Packets.sendToClient(new SendExposureThumbnailS2CP(exposureId, thumbnail), serverPlayer);
         }
 
         return true;

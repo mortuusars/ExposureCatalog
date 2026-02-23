@@ -6,9 +6,8 @@
   "client": [
   ],
   "mixins": [
-    "ServerLevelMixin",
-    "ServersideExposureStorageAccessor",
-    "ServersideExposureStorageMixin"
+    "ExposureRepositoryMixin",
+    "ServerLevelMixin"
   ],
   "injectors": {
     "defaultRequire": 1

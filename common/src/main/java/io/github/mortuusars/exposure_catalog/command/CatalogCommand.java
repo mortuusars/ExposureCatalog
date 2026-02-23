@@ -6,7 +6,7 @@ import com.mojang.brigadier.context.CommandContext;
 import io.github.mortuusars.exposure_catalog.Permissions;
 import io.github.mortuusars.exposure_catalog.PlatformHelper;
 import io.github.mortuusars.exposure_catalog.network.Packets;
-import io.github.mortuusars.exposure_catalog.network.packet.client.OpenCatalogS2CP;
+import io.github.mortuusars.exposure_catalog.network.packet.clientbound.OpenCatalogS2CP;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.level.ServerPlayer;

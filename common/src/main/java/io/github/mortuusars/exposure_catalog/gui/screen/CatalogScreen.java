@@ -5,24 +5,28 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.datafixers.util.Either;
 import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.Exposure;
 import io.github.mortuusars.exposure.ExposureClient;
-import io.github.mortuusars.exposure.camera.infrastructure.FilmType;
-import io.github.mortuusars.exposure.camera.infrastructure.FrameData;
-import io.github.mortuusars.exposure.data.ExposureLook;
-import io.github.mortuusars.exposure.data.ExposureSize;
-import io.github.mortuusars.exposure.item.PhotographItem;
-import io.github.mortuusars.exposure.render.image.ExposureDataImage;
-import io.github.mortuusars.exposure.render.image.RenderedImageProvider;
-import io.github.mortuusars.exposure.render.image.TextureImage;
-import io.github.mortuusars.exposure.render.modifiers.ExposurePixelModifiers;
-import io.github.mortuusars.exposure.util.ItemAndStack;
+import io.github.mortuusars.exposure.ModWidgetSprites;
+import io.github.mortuusars.exposure.client.gui.BetterImageButton;
+import io.github.mortuusars.exposure.client.gui.Widgets;
+import io.github.mortuusars.exposure.client.gui.screen.album.ChildPhotographScreen;
+import io.github.mortuusars.exposure.client.image.PalettedImage;
+import io.github.mortuusars.exposure.client.image.renderable.RenderableImage;
+import io.github.mortuusars.exposure.client.render.image.RenderCoordinates;
+import io.github.mortuusars.exposure.client.task.ExportExposuresTask;
+import io.github.mortuusars.exposure.client.util.Minecrft;
+import io.github.mortuusars.exposure.data.ColorPalettes;
+import io.github.mortuusars.exposure.data.export.ExportLook;
+import io.github.mortuusars.exposure.data.export.ExportSize;
+import io.github.mortuusars.exposure.world.camera.ExposureType;
+import io.github.mortuusars.exposure.world.camera.frame.Frame;
+import io.github.mortuusars.exposure.world.item.PhotographItem;
+import io.github.mortuusars.exposure.world.item.util.ItemAndStack;
+import io.github.mortuusars.exposure.world.level.storage.ExposureIdentifier;
 import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
-import io.github.mortuusars.exposure_catalog.data.ThumbnailRenderedImageProvider;
 import io.github.mortuusars.exposure_catalog.data.client.CatalogClient;
 import io.github.mortuusars.exposure_catalog.gui.Mode;
 import io.github.mortuusars.exposure_catalog.gui.Order;
@@ -30,18 +34,14 @@ import io.github.mortuusars.exposure_catalog.gui.Sorting;
 import io.github.mortuusars.exposure_catalog.gui.screen.tooltip.BelowOrAboveAreaTooltipPositioner;
 import io.github.mortuusars.exposure_catalog.gui.screen.widget.EnumButton;
 import io.github.mortuusars.exposure_catalog.network.Packets;
-import io.github.mortuusars.exposure_catalog.network.packet.server.CatalogClosedC2SP;
-import io.github.mortuusars.exposure_catalog.network.packet.server.DeleteExposureC2SP;
-import io.github.mortuusars.exposure_catalog.network.packet.server.ExportExposuresC2SP;
-import io.github.mortuusars.exposure_catalog.network.packet.server.QueryExposuresC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.serverbound.CatalogClosedC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.serverbound.DeleteExposureC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.serverbound.QueryExposuresC2SP;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.ImageButton;
-import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.components.*;
 import net.minecraft.client.gui.navigation.CommonInputs;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.LightTexture;
@@ -51,6 +51,7 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.searchtree.PlainTextSearchTree;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -62,6 +63,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
 import java.io.File;
 import java.io.FileReader;
@@ -73,6 +75,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class CatalogScreen extends Screen {
+    public static final ModWidgetSprites REFRESH_BUTTON_SPRITES = Widgets.threeStateSprites(ExposureCatalog.resource("refresh"), 12, 12);
+    public static final ModWidgetSprites EXPORT_BUTTON_SPRITES = Widgets.threeStateSprites(ExposureCatalog.resource("export"), 12, 12);
+    public static final ModWidgetSprites EXPORT_STOP_BUTTON_SPRITES = Widgets.threeStateSprites(ExposureCatalog.resource("export_stop"), 12, 12);
+    public static final ModWidgetSprites DELETE_BUTTON_SPRITES = Widgets.threeStateSprites(ExposureCatalog.resource("delete"), 12, 12);
+
     public static final ResourceLocation TEXTURE = ExposureCatalog.resource("textures/gui/catalog.png");
     public static final int TEX_SIZE = 512;
     public static final int ROWS = 4;
@@ -84,14 +91,7 @@ public class CatalogScreen extends Screen {
 
     public static final int REFRESH_COOLDOWN_MS = 500; // 0.5 seconds
     public static final int RELOAD_COOLDOWN_MS = 5000; // 5 seconds
-
-    public record Thumbnail(int index, int gridIndex, Either<String, ResourceLocation> idOrTexture, Rect2i area,
-                            boolean selected) {
-        public boolean isMouseOver(double mouseX, double mouseY) {
-            return mouseX >= area.getX() && mouseX < area.getX() + area.getWidth()
-                    && mouseY >= area.getY() && mouseY < area.getY() + area.getHeight();
-        }
-    }
+    public static final Logger LOGGER = LogUtils.getLogger();
 
     protected final File stateFile = new File(Minecraft.getInstance().gameDirectory, "exposure_catalog_state.json");
 
@@ -112,13 +112,14 @@ public class CatalogScreen extends Screen {
     protected List<Thumbnail> thumbnails = Collections.synchronizedList(new ArrayList<>());
     protected Button refreshButton;
     protected Button exportButton;
+    protected Button exportStopButton;
     protected Button deleteButton;
 
     protected Mode mode = Mode.EXPOSURES;
     protected Order order = Order.ASCENDING;
     protected Sorting sorting = Sorting.DATE;
-    protected ExposureSize exportSize = ExposureSize.X1;
-    protected ExposureLook exportLook = ExposureLook.REGULAR;
+    protected ExportSize exportSize = ExportSize.X1;
+    protected ExportLook exportLook = ExportLook.REGULAR;
 
     protected boolean isLoading;
     protected boolean haveExposures = true;
@@ -174,9 +175,9 @@ public class CatalogScreen extends Screen {
         searchBarArea = new Rect2i(leftPos + 219, topPos + 7, 118, 10);
         thumbnailsArea = new Rect2i(leftPos + 8, topPos + 22, 329, 221);
 
-        orderButton = new EnumButton<>(Order.class, leftPos + 188, topPos + 6, 12, 12, 425, 0,
-                12, 12, TEXTURE, 512, 512, (b, prev, current) -> changeOrder(current),
-                Component.translatable("gui.exposure_catalog.catalog.order")) {
+        orderButton = new EnumButton<>(Order.class, leftPos + 188, topPos + 6, 12, 12,
+              ExposureCatalog.resource("order"), 12, 12, (b, prev, current) -> changeOrder(current),
+              Component.translatable("gui.exposure_catalog.catalog.order")) {
             @Override
             public void playDownSound(SoundManager handler) {
                 playClickSound();
@@ -188,16 +189,16 @@ public class CatalogScreen extends Screen {
             for (Order v : Order.values()) {
                 component.append("\n ");
                 component.append(Component.translatable("gui.exposure_catalog.catalog.order." + v.getSerializedName())
-                        .withStyle(Style.EMPTY.withColor(value == v ? 0x6677FF : 0x444444)));
+                      .withStyle(Style.EMPTY.withColor(value == v ? 0x6677FF : 0x444444)));
             }
 
             return Tooltip.create(component);
         });
         addRenderableWidget(orderButton);
 
-        sortingButton = new EnumButton<>(Sorting.class, leftPos + 203, topPos + 6, 12, 12, 425, 36,
-                12, 12, TEXTURE, 512, 512, (b, prev, current) -> changeSorting(current),
-                Component.translatable("gui.exposure_catalog.catalog.sorting")) {
+        sortingButton = new EnumButton<>(Sorting.class, leftPos + 203, topPos + 6, 12, 12,
+              ExposureCatalog.resource("sorting"), 12, 12, (b, prev, current) -> changeSorting(current),
+              Component.translatable("gui.exposure_catalog.catalog.sorting")) {
             @Override
             public void playDownSound(SoundManager handler) {
                 playClickSound();
@@ -209,7 +210,7 @@ public class CatalogScreen extends Screen {
             for (Sorting v : Sorting.values()) {
                 component.append("\n ");
                 component.append(Component.translatable("gui.exposure_catalog.catalog.sorting." + v.getSerializedName())
-                        .withStyle(Style.EMPTY.withColor(value == v ? 0x6677FF : 0x444444)));
+                      .withStyle(Style.EMPTY.withColor(value == v ? 0x6677FF : 0x444444)));
             }
 
             return Tooltip.create(component);
@@ -224,8 +225,8 @@ public class CatalogScreen extends Screen {
         addRenderableWidget(searchBox);
 
         modeButton = new EnumButton<>(Mode.class, leftPos + 342, topPos + 6, 12, 12,
-                449, 0, 12, 12, TEXTURE, 512, 512,
-                (b, prev, current) -> changeMode(current), Component.translatable("gui.exposure_catalog.catalog.mode")) {
+              ExposureCatalog.resource("mode"), 12, 12, (b, prev, current) -> changeMode(current),
+              Component.translatable("gui.exposure_catalog.catalog.mode")) {
             @Override
             public void playDownSound(SoundManager handler) {
                 playClickSound();
@@ -233,35 +234,34 @@ public class CatalogScreen extends Screen {
         };
         modeButton.setTooltipFunc(value -> {
             MutableComponent component = Component.translatable("gui.exposure_catalog.catalog.mode")
-                    .append(" ")
-                    .append(Component.translatable("gui.exposure_catalog.catalog.mode.hotkey"));
+                  .append(" ")
+                  .append(Component.translatable("gui.exposure_catalog.catalog.mode.hotkey"));
 
             for (Mode v : Mode.values()) {
                 component.append("\n ");
                 component.append(Component.translatable("gui.exposure_catalog.catalog.mode." + v.getSerializedName())
-                        .withStyle(Style.EMPTY.withColor(value == v ? 0x6677FF : 0x444444)));
+                      .withStyle(Style.EMPTY.withColor(value == v ? 0x6677FF : 0x444444)));
             }
 
             return Tooltip.create(component);
         });
         addRenderableWidget(modeButton);
 
-        refreshButton = new ImageButton(leftPos + 7, topPos + 247, 12, 12, 449, 36,
-                12, TEXTURE, 512, 512, b -> refresh());
+        refreshButton = new BetterImageButton(leftPos + 7, topPos + 247, 12, 12, REFRESH_BUTTON_SPRITES, b -> refresh());
         refreshButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.refresh")
-                .append(" ")
-                .append(Component.translatable("gui.exposure_catalog.catalog.refresh.hotkey"))
-                .append("\n")
-                .append(Component.translatable("gui.exposure_catalog.catalog.refresh.tooltip"))));
+              .append(" ")
+              .append(Component.translatable("gui.exposure_catalog.catalog.refresh.hotkey"))
+              .append("\n")
+              .append(Component.translatable("gui.exposure_catalog.catalog.refresh.tooltip"))));
         addRenderableWidget(refreshButton);
 
-        exportButton = new ImageButton(leftPos + 26, topPos + 247, 12, 12, 473, 36,
-                12, TEXTURE, 512, 512, b -> exportExposures()) {
+        exportButton = new BetterImageButton(leftPos + 26, topPos + 247, 12, 12, EXPORT_BUTTON_SPRITES, b -> exportExposures()) {
             @Override
-            public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-                if (isHoveredOrFocused())
+            public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+                if (isHoveredOrFocused()) {
                     setTooltip(Tooltip.create(createExportButtonTooltip()));
-                super.render(guiGraphics, mouseX, mouseY, partialTick);
+                }
+                super.renderWidget(guiGraphics, mouseX, mouseY, partialTick);
             }
 
             @Override
@@ -270,13 +270,13 @@ public class CatalogScreen extends Screen {
                     return super.mouseClicked(mouseX, mouseY, button);
 
                 if (Screen.hasControlDown()) {
-                    exportSize = ExposureSize.values()[(exportSize.ordinal() + 1) % ExposureSize.values().length];
+                    exportSize = ExportSize.values()[(exportSize.ordinal() + 1) % ExportSize.values().length];
                     playClickSound();
                     return true;
                 }
 
                 if (Screen.hasShiftDown()) {
-                    exportLook = ExposureLook.values()[(exportLook.ordinal() + 1) % ExposureLook.values().length];
+                    exportLook = ExportLook.values()[(exportLook.ordinal() + 1) % ExportLook.values().length];
                     playClickSound();
                     return true;
                 }
@@ -286,19 +286,20 @@ public class CatalogScreen extends Screen {
 
             @Override
             public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-                if (!isHoveredOrFocused() || !this.active || !this.visible)
+                if (!isHoveredOrFocused() || !this.active || !this.visible) {
                     return super.mouseScrolled(mouseX, mouseY, delta);
+                }
 
                 if (Screen.hasControlDown()) {
                     int newValue = exportSize.ordinal() - (int) delta;
                     if (newValue < 0)
-                        newValue = ExposureSize.values().length - 1;
-                    else if (newValue >= ExposureSize.values().length)
+                        newValue = ExportSize.values().length - 1;
+                    else if (newValue >= ExportSize.values().length)
                         newValue = 0;
 
-                    if (exportSize != ExposureSize.values()[newValue]) {
+                    if (exportSize != ExportSize.values()[newValue]) {
                         playClickSound();
-                        exportSize = ExposureSize.values()[newValue];
+                        exportSize = ExportSize.values()[newValue];
                     }
                     return true;
                 }
@@ -306,13 +307,13 @@ public class CatalogScreen extends Screen {
                 if (Screen.hasShiftDown()) {
                     int newValue = exportLook.ordinal() - (int) delta;
                     if (newValue < 0)
-                        newValue = ExposureLook.values().length - 1;
-                    else if (newValue >= ExposureLook.values().length)
+                        newValue = ExportLook.values().length - 1;
+                    else if (newValue >= ExportLook.values().length)
                         newValue = 0;
 
-                    if (exportLook != ExposureLook.values()[newValue]) {
+                    if (exportLook != ExportLook.values()[newValue]) {
                         playClickSound();
-                        exportLook = ExposureLook.values()[newValue];
+                        exportLook = ExportLook.values()[newValue];
                     }
                     return true;
                 }
@@ -326,13 +327,13 @@ public class CatalogScreen extends Screen {
                     return super.keyPressed(keyCode, scanCode, modifiers);
 
                 if (CommonInputs.selected(keyCode) && Screen.hasControlDown()) {
-                    exportSize = ExposureSize.values()[(exportSize.ordinal() + 1) % ExposureSize.values().length];
+                    exportSize = ExportSize.values()[(exportSize.ordinal() + 1) % ExportSize.values().length];
                     playClickSound();
                     return true;
                 }
 
                 if (CommonInputs.selected(keyCode) && Screen.hasShiftDown()) {
-                    exportLook = ExposureLook.values()[(exportLook.ordinal() + 1) % ExposureLook.values().length];
+                    exportLook = ExportLook.values()[(exportLook.ordinal() + 1) % ExportLook.values().length];
                     playClickSound();
                     return true;
                 }
@@ -343,18 +344,23 @@ public class CatalogScreen extends Screen {
         exportButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.export")));
         addRenderableWidget(exportButton);
 
-        deleteButton = new ImageButton(leftPos + 342, topPos + 247, 12, 12, 473, 0,
-                12, TEXTURE, 512, 512, b -> deleteExposures());
+        exportStopButton = new BetterImageButton(leftPos + 26, topPos + 247, 12, 12, EXPORT_STOP_BUTTON_SPRITES, b -> ExportExposuresTask.stopCurrentTask());
+        exportStopButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.export_stop")
+              .append(" ")
+              .append(Component.translatable("gui.exposure_catalog.catalog.export.hotkey"))));
+        addRenderableWidget(exportStopButton);
+
+        deleteButton = new BetterImageButton(leftPos + 342, topPos + 247, 12, 12, DELETE_BUTTON_SPRITES, b -> deleteExposures());
         deleteButton.setTooltip(Tooltip.create(Component.translatable("gui.exposure_catalog.catalog.delete")
-                .append(" ")
-                .append(Component.translatable("gui.exposure_catalog.catalog.delete.hotkey"))
-                .append("\n")
-                .append(Component.translatable("gui.exposure_catalog.catalog.delete.tooltip"))));
+              .append(" ")
+              .append(Component.translatable("gui.exposure_catalog.catalog.delete.hotkey"))
+              .append("\n")
+              .append(Component.translatable("gui.exposure_catalog.catalog.delete.tooltip"))));
         addRenderableWidget(deleteButton);
 
         if (!initialized) {
             loadState();
-            ExposureClient.getExposureStorage().clear();
+            ExposureClient.exposureStore().clear();
             Packets.sendToServer(new QueryExposuresC2SP(false));
             isLoading = true;
 
@@ -370,41 +376,41 @@ public class CatalogScreen extends Screen {
 
     protected void playClickSound() {
         Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
-                Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
+              Exposure.SoundEvents.CAMERA_DIAL_CLICK.get(), 1f, 0.8f));
     }
 
     protected Component createExportButtonTooltip() {
         MutableComponent tooltip = Component.translatable("gui.exposure_catalog.catalog.export." +
-                        (selection.isEmpty() || selection.size() == exposures.size() ? "all" : "selected"))
-                .append(" ")
-                .append(Component.translatable("gui.exposure_catalog.catalog.export.hotkey"));
+                    (selection.isEmpty() || selection.size() == exposures.size() ? "all" : "selected"))
+              .append(" ")
+              .append(Component.translatable("gui.exposure_catalog.catalog.export.hotkey"));
 
         tooltip.append("\n");
         tooltip.append(Component.translatable("gui.exposure_catalog.catalog.export.location_info"));
 
         tooltip.append("\n")
-                .append("\n")
-                .append(Component.translatable("gui.exposure_catalog.catalog.export.size"));
+              .append("\n")
+              .append(Component.translatable("gui.exposure_catalog.catalog.export.size"));
 
-        for (ExposureSize size : ExposureSize.values()) {
+        for (ExportSize size : ExportSize.values()) {
             tooltip.append("\n");
             tooltip.append(Component.translatable("gui.exposure_catalog.catalog.export.size." + size.getSerializedName())
-                    .withStyle(Style.EMPTY.withColor(exportSize == size ? 0x6677FF : 0x444444)));
+                  .withStyle(Style.EMPTY.withColor(exportSize == size ? 0x6677FF : 0x444444)));
         }
 
         tooltip.append("\n")
-                .append("\n")
-                .append(Component.translatable("gui.exposure_catalog.catalog.export.look"));
+              .append("\n")
+              .append(Component.translatable("gui.exposure_catalog.catalog.export.look"));
 
-        for (ExposureLook look : ExposureLook.values()) {
+        for (ExportLook look : ExportLook.values()) {
             tooltip.append("\n")
-                    .append(Component.translatable("gui.exposure_catalog.catalog.export.look." + look.getSerializedName())
-                            .withStyle(Style.EMPTY.withColor(exportLook == look ? 0x6677FF : 0x444444)));
+                  .append(Component.translatable("gui.exposure_catalog.catalog.export.look." + look.getSerializedName())
+                        .withStyle(Style.EMPTY.withColor(exportLook == look ? 0x6677FF : 0x444444)));
         }
 
         tooltip.append("\n")
-                .append("\n")
-                .append(Component.translatable("gui.exposure_catalog.catalog.export.control_info"));
+              .append("\n")
+              .append(Component.translatable("gui.exposure_catalog.catalog.export.control_info"));
 
         return tooltip;
     }
@@ -424,7 +430,7 @@ public class CatalogScreen extends Screen {
             return;
 
         if (mode == Mode.EXPOSURES) {
-            ExposureClient.getExposureStorage().clear();
+            ExposureClient.exposureStore().clear();
             boolean reload = Screen.hasShiftDown();
             Packets.sendToServer(new QueryExposuresC2SP(reload));
             if (reload) {
@@ -434,7 +440,10 @@ public class CatalogScreen extends Screen {
             refreshCooldownExpireTime = Util.getMillis() + (reload ? RELOAD_COOLDOWN_MS : REFRESH_COOLDOWN_MS);
         } else if (mode == Mode.TEXTURES) {
             Map<ResourceLocation, Resource> resources = Minecraft.getInstance().getResourceManager().listResources("textures", rl -> true);
-            textures = resources.keySet().stream().map(ResourceLocation::toString).collect(Collectors.toCollection(ArrayList::new));
+            textures = resources.keySet().stream()
+                  .map(ResourceLocation::toString)
+                  .filter(s -> !s.endsWith(".license")) // Filter out some results that cause log spam when trying to load as image. Just hardcoding it for now.
+                  .collect(Collectors.toCollection(ArrayList::new));
             orderTexturesList(this.order);
             refreshSearchResults();
             updateElements();
@@ -446,13 +455,13 @@ public class CatalogScreen extends Screen {
             return;
 
         List<String> exposureIds = !selection.isEmpty()
-                ? selection.get().stream().map(i -> filteredItems.get(i)).toList()
-                : filteredItems;
+              ? selection.get().stream().map(i -> filteredItems.get(i)).toList()
+              : filteredItems;
 
         if (exposureIds.size() > 100) {
             Component message = Component.translatable("gui.exposure_catalog.catalog.confirm.message.export_all", exposureIds.size());
             Screen confirmScreen = new ConfirmScreen(this, message, CommonComponents.GUI_YES,
-                    b -> exportExposures(exposureIds, exportSize, exportLook), CommonComponents.GUI_NO, b -> {
+                  b -> exportExposures(exposureIds, exportSize, exportLook), CommonComponents.GUI_NO, b -> {
             });
             Minecraft.getInstance().setScreen(confirmScreen);
         } else {
@@ -460,8 +469,8 @@ public class CatalogScreen extends Screen {
         }
     }
 
-    protected void exportExposures(List<String> exposureIds, ExposureSize size, ExposureLook look) {
-        ExportExposuresC2SP.sendSplitted(exposureIds, size, look);
+    protected void exportExposures(List<String> exposureIds, ExportSize size, ExportLook look) {
+        ExportExposuresTask.start(exposureIds, size, look);
     }
 
     protected void deleteExposures() {
@@ -480,7 +489,7 @@ public class CatalogScreen extends Screen {
             }
 
             Screen confirmScreen = new ConfirmScreen(this, message, CommonComponents.GUI_YES,
-                    b -> deleteExposuresNoConfirm(), CommonComponents.GUI_NO, b -> {
+                  b -> deleteExposuresNoConfirm(), CommonComponents.GUI_NO, b -> {
             });
             Minecraft.getInstance().setScreen(confirmScreen);
         }
@@ -527,7 +536,10 @@ public class CatalogScreen extends Screen {
 
         sortingButton.active = mode == Mode.EXPOSURES;
 
-        exportButton.active = mode == Mode.EXPOSURES;
+        exportButton.visible = mode == Mode.EXPOSURES && !ExportExposuresTask.isRunning();
+        exportButton.active = mode == Mode.EXPOSURES && !ExportExposuresTask.isRunning();
+        exportStopButton.visible = ExportExposuresTask.isRunning();
+        exportStopButton.active = ExportExposuresTask.isRunning();
         deleteButton.active = mode == Mode.EXPOSURES && !selection.isEmpty();
 
         refreshButton.active = canRefresh();
@@ -537,7 +549,7 @@ public class CatalogScreen extends Screen {
         this.mode = mode;
 
         if ((mode == Mode.EXPOSURES && exposures.isEmpty()) ||
-                (mode == Mode.TEXTURES && textures.isEmpty())) {
+              (mode == Mode.TEXTURES && textures.isEmpty())) {
             refresh();
         }
 
@@ -580,8 +592,8 @@ public class CatalogScreen extends Screen {
                 }
 
                 private long getTimestamp(String exposureId) {
-                    @Nullable ExposureInfo exposureData = CatalogClient.getExposures().get(exposureId);
-                    return exposureData != null ? exposureData.getTimestampUnixSeconds() : 0L;
+                    @Nullable ExposureInfo exposureInfo = CatalogClient.getExposures().get(exposureId);
+                    return exposureInfo != null ? exposureInfo.tag().unixTimestamp() : 0L;
                 }
             };
 
@@ -594,11 +606,6 @@ public class CatalogScreen extends Screen {
 
     protected void orderTexturesList(Order order) {
         textures.sort(order == Order.ASCENDING ? Comparator.naturalOrder() : Comparator.reverseOrder());
-    }
-
-    @Override
-    public void tick() {
-        searchBox.tick();
     }
 
     @Override
@@ -642,14 +649,30 @@ public class CatalogScreen extends Screen {
                 if (filter.isEmpty()) {
                     // Do nothing
                 } else if ("printed".startsWith(filter)) {
-                    filtered.removeIf(id -> !CatalogClient.getExposures().get(id).wasPrinted() ^ negative);
+                    filtered.removeIf(id -> !CatalogClient.getExposures().getOrDefault(id, ExposureInfo.empty("")).tag().wasPrinted() ^ negative);
                 } else if ("projected".startsWith(filter)) {
-                    filtered.removeIf(id -> !CatalogClient.getExposures().get(id).isLoadedFromFile() ^ negative);
+                    filtered.removeIf(id -> !CatalogClient.getExposures().getOrDefault(id, ExposureInfo.empty("")).tag().loaded() ^ negative);
                 } else if ("color".startsWith(filter)) {
-                    filtered.removeIf(id -> CatalogClient.getExposures().get(id).getType() != FilmType.COLOR ^ negative);
-                } else if (filter.startsWith("x") && filter.length() > 1 && filter.substring(1).matches("^[0-9]+$")) {
-                    int size = Integer.parseInt(filter.substring(1));
-                    filtered.removeIf(id -> !(CatalogClient.getExposures().get(id).getWidth() == size) ^ negative);
+                    filtered.removeIf(id -> CatalogClient.getExposures().getOrDefault(id, ExposureInfo.empty("")).tag().type() != ExposureType.COLOR ^ negative);
+                } else if ("bw".startsWith(filter)) {
+                    filtered.removeIf(id -> CatalogClient.getExposures().getOrDefault(id, ExposureInfo.empty("")).tag().type() != ExposureType.BLACK_AND_WHITE ^ negative);
+                } else if (filter.startsWith("size:")) {
+                    String sizeStr = filter.substring(5);
+                    if (!sizeStr.isEmpty() && sizeStr.matches("^[0-9]+$")) {
+                        int size = Integer.parseInt(sizeStr);
+                        filtered.removeIf(id -> !(CatalogClient.getExposures().get(id).width() == size) ^ negative);
+                    }
+                } else if (filter.startsWith("palette:")) {
+                    String palette = filter.substring(8).toLowerCase();
+
+                    PlainTextSearchTree<String> tree = PlainTextSearchTree.create(filtered, id ->
+                          CatalogClient.getExposures().get(id).palette().toString().lines());
+                    ArrayList<String> matches = new ArrayList<>(tree.search(palette));
+                    if (negative) {
+                        filtered.removeAll(matches);
+                    } else {
+                        filtered = matches;
+                    }
                 } else {
                     filtered.clear();
                 }
@@ -677,16 +700,14 @@ public class CatalogScreen extends Screen {
                 int thumbnailY = row * 54;
 
                 String item = filteredItems.get(idIndex);
-                Either<String, ResourceLocation> idOrTexture;
-                if (mode == Mode.EXPOSURES)
-                    idOrTexture = Either.left(item);
-                else
-                    idOrTexture = Either.right(new ResourceLocation(item));
+                ExposureIdentifier identifier = mode == Mode.EXPOSURES
+                      ? ExposureIdentifier.id(item)
+                      : ExposureIdentifier.texture(new ResourceLocation(item));
 
                 Rect2i area = new Rect2i(thumbnailsArea.getX() + 5 + thumbnailX,
-                        thumbnailsArea.getY() + 5 + thumbnailY, 48, 48);
+                      thumbnailsArea.getY() + 5 + thumbnailY, 48, 48);
                 boolean isSelected = selection.get().contains(idIndex);
-                Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, idOrTexture, area, isSelected);
+                Thumbnail thumbnail = new Thumbnail(idIndex, gridIndex, identifier, area, isSelected);
                 thumbnails.add(thumbnail);
             }
         }
@@ -701,13 +722,13 @@ public class CatalogScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        refreshButton.active = canRefresh();
+        updateButtons();
 
         renderBackground(guiGraphics);
 
         // Main texture
         guiGraphics.blit(TEXTURE, leftPos, topPos, imageWidth, imageHeight, 0, 0,
-                imageWidth, imageHeight, TEX_SIZE, TEX_SIZE);
+              imageWidth, imageHeight, TEX_SIZE, TEX_SIZE);
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
@@ -719,45 +740,40 @@ public class CatalogScreen extends Screen {
 
     protected void renderThumbnailsGrid(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         for (Thumbnail thumbnail : thumbnails) {
-            MultiBufferSource.BufferSource bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
+            MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
 
-            RenderedImageProvider thumbnailImageProvider = getThumbnailImage(thumbnail);
-            ExposureClient.getExposureRenderer().render(thumbnailImageProvider, ExposurePixelModifiers.EMPTY,
-                    guiGraphics.pose(), bufferSource, thumbnail.area().getX(), thumbnail.area().getY(),
-                    thumbnail.area().getWidth(), thumbnail.area().getHeight(), LightTexture.FULL_BRIGHT, 255, 255, 255, 255);
+            RenderableImage image = getThumbnailImage(thumbnail);
+            RenderCoordinates coords = new RenderCoordinates(thumbnail.area().getX(), thumbnail.area().getY(),
+                  thumbnail.area().getWidth(), thumbnail.area().getHeight());
+
+            ExposureClient.imageRenderer().render(image, guiGraphics.pose(), bufferSource, coords, LightTexture.FULL_BRIGHT, 255, 255, 255, 255);
 
             bufferSource.endBatch();
 
             int frameVOffset = thumbnail.selected() ? 108 :
-                    thumbnail.isMouseOver(mouseX, mouseY) ? 54 : 0;
+                  thumbnail.isMouseOver(mouseX, mouseY) ? 54 : 0;
 
             RenderSystem.enableBlend();
             // Frame overlay
             guiGraphics.blit(TEXTURE, thumbnail.area().getX() - 3, thumbnail.area().getY() - 3, 371, frameVOffset,
-                    54, 54, 512, 512);
+                  54, 54, 512, 512);
             RenderSystem.disableBlend();
         }
     }
 
-    protected RenderedImageProvider getThumbnailImage(Thumbnail thumbnail) {
-        return thumbnail.idOrTexture().map(
-                exposureId -> {
-                    if (Minecraft.getInstance().isSingleplayer()) {
-                        // Loading full size images is ok in singleplayer
-                        return ExposureClient.getExposureStorage().getOrQuery(exposureId)
-                                .map(data -> new RenderedImageProvider(new ExposureDataImage(exposureId, data)))
-                                .orElse(RenderedImageProvider.EMPTY);
-                    }
+    protected RenderableImage getThumbnailImage(Thumbnail thumbnail) {
+        if (thumbnail.identifier().isTexture() || Minecraft.getInstance().isSingleplayer()) {
+            // Loading full size images is ok in singleplayer
+            return ExposureClient.renderedExposures().getOrCreateRaw(thumbnail.identifier());
+        }
 
-                    return (Util.getMillis() - lastScrolledTime < 250 ?
-                            CatalogClient.getThumbnail(exposureId) : CatalogClient.getOrQueryThumbnail(exposureId))
-                            .map(th -> (RenderedImageProvider) new ThumbnailRenderedImageProvider(th))
-                            .orElse(RenderedImageProvider.EMPTY);
-                },
-                texture -> {
-                    @Nullable TextureImage tex = TextureImage.getTexture(texture);
-                    return tex != null ? new RenderedImageProvider(tex) : RenderedImageProvider.EMPTY;
-                });
+        String id = thumbnail.identifier().getId().orElseThrow();
+
+        return (Util.getMillis() - lastScrolledTime < 250 ?
+              CatalogClient.getThumbnail(id) : CatalogClient.getOrQueryThumbnail(id))
+              .map(thumb -> new PalettedImage(thumb.width(), thumb.height(), thumb.pixels(), thumb.paletteId()))
+              .map(img -> RenderableImage.of("thumbnail_" + id, img))
+              .orElse(RenderableImage.EMPTY);
     }
 
     protected void renderTooltip(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -765,15 +781,17 @@ public class CatalogScreen extends Screen {
             List<Component> lines = new ArrayList<>();
 
             lines.add(Component.translatable("gui.exposure_catalog.searchbar")
-                    .append(" ")
-                    .append(Component.translatable("gui.exposure_catalog.searchbar.hotkey")));
+                  .append(" ")
+                  .append(Component.translatable("gui.exposure_catalog.searchbar.hotkey")));
 
             if (Screen.hasShiftDown()) {
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.size"));
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.palette"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.color"));
+                lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.bw"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.printed"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.projected"));
-                lines.add(Component.empty());
+                lines.add(CommonComponents.EMPTY);
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.filters"));
                 lines.add(Component.translatable("gui.exposure_catalog.searchbar.tooltip.invert"));
             } else
@@ -791,7 +809,7 @@ public class CatalogScreen extends Screen {
             if (isThumbnailsGridFocused && thumbnail.gridIndex() == focusedThumbnailIndex) {
                 List<Component> lines = getThumbnailTooltipLines(thumbnail);
                 guiGraphics.renderTooltip(font, Lists.transform(lines, Component::getVisualOrderText),
-                        new BelowOrAboveAreaTooltipPositioner(thumbnail.area()), mouseX, mouseY);
+                      new BelowOrAboveAreaTooltipPositioner(thumbnail.area()), mouseX, mouseY);
                 break;
             }
         }
@@ -799,15 +817,13 @@ public class CatalogScreen extends Screen {
 
     @NotNull
     private List<Component> getThumbnailTooltipLines(Thumbnail thumbnail) {
-        String idOrTextureStr = thumbnail.idOrTexture().map(s -> s, ResourceLocation::toString);
-
         List<Component> lines = new ArrayList<>();
-        lines.add(Component.literal(idOrTextureStr));
+        lines.add(Component.literal(thumbnail.identifier().toValueString()));
 
-        thumbnail.idOrTexture().ifLeft(exposureId -> {
+        thumbnail.identifier().ifId(exposureId -> {
             @Nullable ExposureInfo exposureInfo = CatalogClient.getExposures().get(exposureId);
             if (exposureInfo != null) {
-                long timestampSeconds = exposureInfo.getTimestampUnixSeconds();
+                long timestampSeconds = exposureInfo.tag().unixTimestamp();
                 if (timestampSeconds > 0) {
                     Date date = new Date(timestampSeconds * 1000L);
                     String pattern = "yyyy-MM-dd HH:mm:ss";
@@ -816,12 +832,17 @@ public class CatalogScreen extends Screen {
                     lines.add(Component.literal(format1).withStyle(ChatFormatting.GRAY));
                 }
 
-                lines.add(Component.literal(exposureInfo.getWidth() + "x" + exposureInfo.getHeight()).withStyle(ChatFormatting.GRAY));
+                lines.add(Component.literal(exposureInfo.width() + "x" + exposureInfo.height()).withStyle(ChatFormatting.GRAY));
 
-                if (exposureInfo.wasPrinted())
-                    lines.add(Component.literal("Printed").withStyle(ChatFormatting.GRAY));
-                if (exposureInfo.isLoadedFromFile())
-                    lines.add(Component.literal("Projected").withStyle(ChatFormatting.GRAY));
+                if (!exposureInfo.palette().equals(ColorPalettes.DEFAULT.location())) {
+                    lines.add(Component.translatable("gui.exposure_catalog.catalog.tooltip.palette",
+                          exposureInfo.palette().toString()).withStyle(ChatFormatting.GRAY));
+                }
+
+                if (exposureInfo.tag().wasPrinted())
+                    lines.add(Component.translatable("gui.exposure_catalog.catalog.tooltip.printed").withStyle(ChatFormatting.GRAY));
+                if (exposureInfo.tag().loaded())
+                    lines.add(Component.translatable("gui.exposure_catalog.catalog.tooltip.projected").withStyle(ChatFormatting.GRAY));
             }
         });
 
@@ -839,7 +860,7 @@ public class CatalogScreen extends Screen {
 
     protected boolean isMouseOver(Rect2i rect, double mouseX, double mouseY) {
         return mouseX >= rect.getX() && mouseX < rect.getX() + rect.getWidth()
-                && mouseY >= rect.getY() && mouseY < rect.getY() + rect.getHeight();
+              && mouseY >= rect.getY() && mouseY < rect.getY() + rect.getHeight();
     }
 
     protected void renderScrollBar(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -853,27 +874,27 @@ public class CatalogScreen extends Screen {
 
         // Top
         guiGraphics.blit(TEXTURE, scrollThumb.getX(), scrollThumb.getY(),
-                361, state * thumbStateOffset,
-                scrollThumb.getWidth(), SCROLL_THUMB_TOP_HEIGHT, 512, 512);
+              361, state * thumbStateOffset,
+              scrollThumb.getWidth(), SCROLL_THUMB_TOP_HEIGHT, 512, 512);
 
         // Middle
         int middleParts = (scrollThumb.getHeight() - 3 - 2) / 4;
         for (int i = 0; i < middleParts; i++) {
             guiGraphics.blit(TEXTURE, scrollThumb.getX(), scrollThumb.getY() + i * 4 + 3,
-                    361, SCROLL_THUMB_TOP_HEIGHT + state * thumbStateOffset,
-                    scrollThumb.getWidth(), SCROLL_THUMB_MID_HEIGHT, 512, 512);
+                  361, SCROLL_THUMB_TOP_HEIGHT + state * thumbStateOffset,
+                  scrollThumb.getWidth(), SCROLL_THUMB_MID_HEIGHT, 512, 512);
         }
 
         // Bottom
         guiGraphics.blit(TEXTURE, scrollThumb.getX(), scrollThumb.getY() + (middleParts * 4) + 3,
-                361, SCROLL_THUMB_TOP_HEIGHT + SCROLL_THUMB_MID_HEIGHT + state * thumbStateOffset,
-                scrollThumb.getWidth(), SCROLL_THUMB_BOT_HEIGHT, 512, 512);
+              361, SCROLL_THUMB_TOP_HEIGHT + SCROLL_THUMB_MID_HEIGHT + state * thumbStateOffset,
+              scrollThumb.getWidth(), SCROLL_THUMB_BOT_HEIGHT, 512, 512);
     }
 
     protected void renderLabels(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // Title
         Component title = mode == Mode.EXPOSURES ? Component.translatable("gui.exposure_catalog.catalog.exposures")
-                : Component.translatable("gui.exposure_catalog.catalog.textures");
+              : Component.translatable("gui.exposure_catalog.catalog.textures");
         guiGraphics.drawString(font, title, leftPos + 8, topPos + 8, 0xFF414141, false);
 
         if (mode == Mode.EXPOSURES && !isLoading && !haveExposures) {
@@ -887,9 +908,9 @@ public class CatalogScreen extends Screen {
         if (isLoading && mode == Mode.EXPOSURES) {
             int dotAnimation = (int) (Util.getMillis() / 750 % 3) + 1;
             Component component = Component.translatable("gui.exposure_catalog.catalog.loading" + dotAnimation)
-                    .withStyle(Style.EMPTY.withColor(0xFF414141));
+                  .withStyle(Style.EMPTY.withColor(0xFF414141));
             guiGraphics.drawString(font, component, leftPos + (imageWidth / 2) - (font.width(component) / 2),
-                    topPos + 249, 0xFF414141, false);
+                  topPos + 249, 0xFF414141, false);
         } else if (!filteredItems.isEmpty()) {
             String filteredCountStr = Integer.toString(filteredItems.size());
 
@@ -897,18 +918,18 @@ public class CatalogScreen extends Screen {
             if (!selection.isEmpty()) {
                 String selectedCountStr = Integer.toString(selection.size());
                 countComponent = Component.literal(selectedCountStr).withStyle(Style.EMPTY.withColor(0xFF3858db))
-                        .append(Component.literal("/").withStyle(Style.EMPTY.withColor(0xFF414141)))
-                        .append(countComponent);
+                      .append(Component.literal("/").withStyle(Style.EMPTY.withColor(0xFF414141)))
+                      .append(countComponent);
             }
 
             guiGraphics.drawString(font, countComponent, leftPos + (imageWidth / 2) - (font.width(countComponent) / 2),
-                    topPos + 249, 0xFF414141, false);
+                  topPos + 249, 0xFF414141, false);
         }
 
         // SearchBox placeholder text
         if (searchBox.isVisible() && !searchBox.isFocused() && searchBox.getValue().isEmpty()) {
             guiGraphics.drawString(font, Component.translatable("gui.exposure_catalog.catalog.search_bar_placeholder_text"),
-                    searchBarArea.getX() + 2, searchBarArea.getY() + 1, 0xFFBEBEBE, false);
+                  searchBarArea.getX() + 2, searchBarArea.getY() + 1, 0xFFBEBEBE, false);
         }
     }
 
@@ -953,7 +974,7 @@ public class CatalogScreen extends Screen {
                                 selection.select(i);
                         }
                     } else {
-                        if (selection.get().contains(thumbnail.index))
+                        if (selection.get().contains(thumbnail.index()))
                             selection.remove(thumbnail.index());
                         else {
                             selection.select(thumbnail.index());
@@ -1015,8 +1036,9 @@ public class CatalogScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (super.mouseScrolled(mouseX, mouseY, delta))
+        if (super.mouseScrolled(mouseX, mouseY, delta)) {
             return true;
+        }
 
         scroll((int) -delta);
         return true;
@@ -1088,7 +1110,12 @@ public class CatalogScreen extends Screen {
                 return true;
             }
             if (keyCode == InputConstants.KEY_E) {
-                exportExposures();
+                if (ExportExposuresTask.isRunning()) {
+                    ExportExposuresTask.stopCurrentTask();
+                } else {
+                    exportExposures();
+                }
+
                 playClickSound();
                 return true;
             }
@@ -1158,7 +1185,7 @@ public class CatalogScreen extends Screen {
 
     private boolean arrowKeysPressed(int keyCode) {
         if (filteredItems.isEmpty() || !List.of(InputConstants.KEY_LEFT, InputConstants.KEY_RIGHT,
-                InputConstants.KEY_UP, InputConstants.KEY_DOWN).contains(keyCode))
+              InputConstants.KEY_UP, InputConstants.KEY_DOWN).contains(keyCode))
             return false;
 
         if (!isThumbnailsGridFocused) {
@@ -1171,10 +1198,10 @@ public class CatalogScreen extends Screen {
         }
 
         Map<Integer, Integer> keys = Map.of(
-                InputConstants.KEY_LEFT, -1,
-                InputConstants.KEY_RIGHT, 1,
-                InputConstants.KEY_UP, -COLS,
-                InputConstants.KEY_DOWN, COLS);
+              InputConstants.KEY_LEFT, -1,
+              InputConstants.KEY_RIGHT, 1,
+              InputConstants.KEY_UP, -COLS,
+              InputConstants.KEY_DOWN, COLS);
         int change = keys.get(keyCode);
         int oldIndex = focusedThumbnailIndex;
         int newIndex = focusedThumbnailIndex + change;
@@ -1265,16 +1292,19 @@ public class CatalogScreen extends Screen {
 
     protected void openPhotographView(int clickedIndex) {
         List<String> items = !selection.isEmpty()
-                ? selection.get().stream().map(i -> filteredItems.get(i)).toList()
-                : filteredItems;
+              ? selection.get().stream().map(i -> filteredItems.get(i)).toList()
+              : filteredItems;
 
         List<ItemAndStack<PhotographItem>> photographs = new ArrayList<>(items.stream().map(item -> {
             ItemStack stack = new ItemStack(Exposure.Items.PHOTOGRAPH.get());
-            CompoundTag tag = new CompoundTag();
 
-            tag.putString(mode == Mode.EXPOSURES ? FrameData.ID : FrameData.TEXTURE, item);
+            ExposureIdentifier identifier = mode == Mode.EXPOSURES ?
+                  ExposureIdentifier.id(item) :
+                  ExposureIdentifier.texture(new ResourceLocation(item));
 
-            stack.setTag(tag);
+            Frame frame = Frame.create().setIdentifier(identifier).toImmutable();
+            Exposure.DataComponents.setPhotographFrame(stack, frame);
+
             return new ItemAndStack<PhotographItem>(stack);
         }).toList());
 
@@ -1283,18 +1313,18 @@ public class CatalogScreen extends Screen {
 
         Collections.rotate(photographs, -clickedIdIndex);
 
-        CatalogPhotographScreen screen = new CatalogPhotographScreen(this, photographs);
+        ChildPhotographScreen screen = new ChildPhotographScreen(this, photographs);
         Minecraft.getInstance().setScreen(screen);
-        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(
-                Exposure.SoundEvents.PHOTOGRAPH_RUSTLE.get(),
-                Objects.requireNonNull(Minecraft.getInstance().player).level().getRandom().nextFloat() * 0.2f + 1.3f, 0.75f));
+        Minecrft.get().getSoundManager()
+              .play(SimpleSoundInstance.forUI(Exposure.SoundEvents.PHOTOGRAPH_RUSTLE.get(),
+                    Minecrft.level().getRandom().nextFloat() * 0.2f + 1.3f, 0.75f));
     }
 
     @Override
     public void onClose() {
         saveState();
         CatalogClient.clear();
-        ExposureClient.getExposureStorage().clear();
+        ExposureClient.exposureStore().clear();
         Packets.sendToServer(new CatalogClosedC2SP());
         super.onClose();
     }
@@ -1326,8 +1356,8 @@ public class CatalogScreen extends Screen {
                 this.mode = Mode.fromSerializedString(obj.get("mode").getAsString());
                 this.order = Order.fromSerializedString(obj.get("order").getAsString());
                 this.sorting = Sorting.fromSerializedString(obj.get("sorting").getAsString());
-                this.exportSize = ExposureSize.byName(obj.get("export_size").getAsString());
-                this.exportLook = ExposureLook.byName(obj.get("export_look").getAsString());
+                this.exportSize = ExportSize.byName(obj.get("export_size").getAsString());
+                this.exportLook = ExportLook.byName(obj.get("export_look").getAsString());
             } catch (Exception e) {
                 throw e;
             }

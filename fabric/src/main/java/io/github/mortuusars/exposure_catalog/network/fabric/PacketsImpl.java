@@ -2,8 +2,8 @@ package io.github.mortuusars.exposure_catalog.network.fabric;
 
 import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure_catalog.network.PacketDirection;
-import io.github.mortuusars.exposure_catalog.network.packet.IPacket;
-import io.github.mortuusars.exposure_catalog.network.packet.server.*;
+import io.github.mortuusars.exposure_catalog.network.packet.Packet;
+import io.github.mortuusars.exposure_catalog.network.packet.serverbound.*;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -22,7 +22,6 @@ public class PacketsImpl {
     public static void registerC2SPackets() {
         ServerPlayNetworking.registerGlobalReceiver(QueryExposuresC2SP.ID, new ServerHandler(QueryExposuresC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(DeleteExposureC2SP.ID, new ServerHandler(DeleteExposureC2SP::fromBuffer));
-        ServerPlayNetworking.registerGlobalReceiver(ExportExposuresC2SP.ID, new ServerHandler(ExportExposuresC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(QueryThumbnailC2SP.ID, new ServerHandler(QueryThumbnailC2SP::fromBuffer));
         ServerPlayNetworking.registerGlobalReceiver(CatalogClosedC2SP.ID, new ServerHandler(CatalogClosedC2SP::fromBuffer));
     }
@@ -31,15 +30,15 @@ public class PacketsImpl {
         ClientPackets.registerS2CPackets();
     }
 
-    public static void sendToServer(IPacket packet) {
+    public static void sendToServer(Packet packet) {
         ClientPackets.sendToServer(packet);
     }
 
-    public static void sendToClient(IPacket packet, ServerPlayer player) {
+    public static void sendToClient(Packet packet, ServerPlayer player) {
         ServerPlayNetworking.send(player, packet.getId(), packet.toBuffer(PacketByteBufs.create()));
     }
 
-    public static void sendToAllClients(IPacket packet) {
+    public static void sendToAllClients(Packet packet) {
         if (server == null) {
             LogUtils.getLogger().error("Cannot send a packet to all players. Server is not present.");
             return;
@@ -60,10 +59,10 @@ public class PacketsImpl {
         PacketsImpl.server = null;
     }
 
-    private record ServerHandler(Function<FriendlyByteBuf, IPacket> decodeFunction) implements ServerPlayNetworking.PlayChannelHandler {
+    private record ServerHandler(Function<FriendlyByteBuf, Packet> decodeFunction) implements ServerPlayNetworking.PlayChannelHandler {
         @Override
         public void receive(MinecraftServer server, ServerPlayer player, ServerGamePacketListenerImpl handler, FriendlyByteBuf buf, PacketSender responseSender) {
-            IPacket packet = decodeFunction.apply(buf);
+            Packet packet = decodeFunction.apply(buf);
             packet.handle(PacketDirection.TO_SERVER, player);
         }
     }

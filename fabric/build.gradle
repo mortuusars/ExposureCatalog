@@ -1,6 +1,5 @@
 plugins {
-    id "com.github.johnrengelman.shadow" version "7.1.2"
-    id "me.shedaniel.unified-publishing"
+    id 'com.gradleup.shadow'
 }
 
 architectury {
@@ -8,29 +7,21 @@ architectury {
     fabric()
 }
 
-loom {
-    accessWidenerPath = project(":common").loom.accessWidenerPath
-    runs {
-        client {
-            programArgs "--username", "Dev"
-        }
-        create("client2") {
-            inherit(getByName("client"))
-
-            name("Second Client")
-            programArgs("--username", "AnotherDev")
-
-            client()
-        }
-    }
-}
-
 configurations {
-    common
-    shadowCommon // Don't use shadow from the shadow plugin since it *excludes* files.
+    common {
+        canBeResolved = true
+        canBeConsumed = false
+    }
     compileClasspath.extendsFrom common
     runtimeClasspath.extendsFrom common
     developmentFabric.extendsFrom common
+
+    // Files in this configuration will be bundled into your mod using the Shadow plugin.
+    // Don't use the `shadow` configuration from the plugin itself as it's meant for excluding files.
+    shadowBundle {
+        canBeResolved = true
+        canBeConsumed = false
+    }
 }
 
 repositories {
@@ -50,120 +41,43 @@ repositories {
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
     modApi "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
-    // ExposureCatalog does not depend on the Architectury API:
-    // modApi "dev.architectury:architectury-fabric:${rootProject.architectury_version}"
+
     modImplementation("net.fabricmc.fabric-api:fabric-api:${fabric_api_version}")
-    modImplementation("io.github.mortuusars.exposure:exposure-fabric:${exposure_version}")
+    modImplementation("fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forge_config_api_port_version}")
+    modImplementation("io.github.mortuusars.exposure:exposure-${minecraft_version}-fabric:${exposure_version}")
 
-    include(modImplementation('me.lucko:fabric-permissions-api:0.3.1'))
-
-    // forgeconfigapiport is needed for Exposure to run:
-    modRuntimeOnly "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forge_config_api_version}"
     modRuntimeOnly("mezz.jei:jei-${minecraft_version}-fabric:${jei_version}")
+    //modRuntimeOnly("io.github.mortuusars.exposure_catalog:exposure_catalog-fabric:${minecraft_version}-${exposure_catalog_version}")
 
-    common(project(path: ":common", configuration: "namedElements")) { transitive false }
-    shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }
+    common(project(path: ':common', configuration: 'namedElements')) { transitive false }
+    shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
 }
 
-processResources {
-    // input variables of this task:
-    var replaceProperties = [
-            minecraft_version    : minecraft_version,
+loom {
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+    runs {
+        client {
+            programArgs "--username", "Dev"
+        }
+        create("client2") {
+            inherit(getByName("client"))
 
-            mod_id               : mod_id,
-            mod_name             : mod_name,
-            mod_version          : mod_version,
-            mod_license          : mod_license,
-            mod_authors          : mod_authors,
-            mod_description      : mod_description,
-            mod_homepage         : mod_homepage,
-            mod_github           : mod_github,
-    ]
-    inputs.properties replaceProperties
+            name("Second Client")
+            programArgs("--username", "AnotherDev")
 
-    filesMatching("fabric.mod.json") {
-        expand replaceProperties + [project: project]
+            client()
+        }
     }
 }
 
 shadowJar {
-    exclude "architectury.common.json"
-
-    configurations = [project.configurations.shadowCommon]
-    archiveClassifier = "dev-shadow"
+    exclude("architectury.common.json")
+    configurations = [project.configurations.shadowBundle]
+    archiveClassifier = 'dev-shadow'
 }
 
 remapJar {
-    archiveClassifier = "fabric"
     injectAccessWidener = true
     input.set shadowJar.archiveFile
     dependsOn shadowJar
-}
-
-sourcesJar {
-    def commonSources = project(":common").sourcesJar
-    dependsOn commonSources
-    from commonSources.archiveFile.map { zipTree(it) }
-}
-
-components.java {
-    withVariantsFromConfiguration(project.configurations.shadowRuntimeElements) {
-        skip()
-    }
-}
-
-publishing {
-    publications {
-        mavenFabric(MavenPublication) {
-            artifactId = rootProject.mod_id + "-" + project.name
-            from components.java
-        }
-    }
-
-    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-    repositories {
-        var path = System.getenv("LOCAL_MAVEN")
-        if (path != null) {
-            maven {
-                name = 'local'
-                url = uri(path + "/maven")
-            }
-        }
-    }
-}
-
-// https://github.com/shedaniel/unified-publishing
-unifiedPublishing {
-    project {
-        displayName = "${mod_name} - Fabric ${minecraft_version} - ${mod_version}" // Optional, name of the file
-        version = mod_version // Optional, Inferred from project by default
-        changelog = rootProject.ext.changelog
-        releaseType = mod_release_type // Optional, use "release", "beta" or "alpha"
-        gameVersions = [minecraft_version]
-        gameLoaders = ["fabric", "quilt"]
-
-        mainPublication tasks.remapJar // Declares the publicated jar
-
-        curseforge {
-            token = System.getenv("CURSEFORGE_TOKEN")
-            id = mod_curseforge_project_id // Required, must be a string, ID of CurseForge project
-
-            relations {
-                depends "exposure"
-                depends "fabric-api"
-            }
-        }
-
-        modrinth {
-            token = System.getenv("MODRINTH_TOKEN")
-            id = mod_modrinth_project_id // Required, must be a string, ID of Modrinth project
-
-            displayName = "${mod_name} - ${mod_version}" // Optional, name of the file
-
-            relations {
-                depends "exposure"
-                depends "fabric-api"
-            }
-        }
-    }
 }

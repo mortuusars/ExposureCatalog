@@ -5,7 +5,7 @@ import io.github.mortuusars.exposure_catalog.data.ExposureThumbnail;
 import io.github.mortuusars.exposure_catalog.gui.screen.CatalogScreen;
 import io.github.mortuusars.exposure_catalog.gui.screen.OverlayScreen;
 import io.github.mortuusars.exposure_catalog.network.Packets;
-import io.github.mortuusars.exposure_catalog.network.packet.server.QueryThumbnailC2SP;
+import io.github.mortuusars.exposure_catalog.network.packet.serverbound.QueryThumbnailC2SP;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import org.jetbrains.annotations.Nullable;
@@ -44,16 +44,16 @@ public class CatalogClient {
         return Optional.of(thumbnail);
     }
 
-    public static void setThumbnail(ExposureThumbnail thumbnail) {
-        thumbnails.put(thumbnail.getImageId(), thumbnail);
-        queriedThumbnails.remove(thumbnail.getImageId());
+    public static void setThumbnail(String id, ExposureThumbnail thumbnail) {
+        thumbnails.put(id, thumbnail);
+        queriedThumbnails.remove(id);
     }
 
-    public static void setExposures(List<ExposureInfo> exposuresList) {
+    public static void setExposures(List<ExposureInfo> exposureInfos) {
         exposures.clear();
 
-        for (ExposureInfo data : exposuresList) {
-            exposures.put(data.getExposureId(), data);
+        for (ExposureInfo data : exposureInfos) {
+            exposures.put(data.id(), data);
         }
 
         getCatalogScreen().ifPresent(catalogScreen -> catalogScreen.onExposuresReceived(exposures));
@@ -61,7 +61,7 @@ public class CatalogClient {
 
     public static Optional<CatalogScreen> getCatalogScreen() {
         Screen openedScreen = Minecraft.getInstance().screen instanceof OverlayScreen overlayScreen ?
-                overlayScreen.getParent() : Minecraft.getInstance().screen;
+              overlayScreen.getParent() : Minecraft.getInstance().screen;
 
         return openedScreen instanceof CatalogScreen catalogScreen ? Optional.of(catalogScreen) : Optional.empty();
     }

@@ -1,81 +1,34 @@
 package io.github.mortuusars.exposure_catalog.data;
 
-import io.github.mortuusars.exposure.camera.infrastructure.FilmType;
+import io.github.mortuusars.exposure.data.ColorPalettes;
+import io.github.mortuusars.exposure.world.level.storage.ExposureData;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 
-public class ExposureInfo {
-    protected final String exposureId;
-    protected final int width, height;
-    protected final FilmType type;
-    protected final boolean wasPrinted;
-    protected final boolean isLoadedFromFile;
-    protected final long timestampUnixSeconds;
-
-    public ExposureInfo(String exposureId, int width, int height, FilmType type, boolean wasPrinted, boolean isLoadedFromFile, long timestampUnixSeconds) {
-        this.exposureId = exposureId;
-        this.width = width;
-        this.height = height;
-        this.type = type;
-        this.wasPrinted = wasPrinted;
-        this.isLoadedFromFile = isLoadedFromFile;
-        this.timestampUnixSeconds = timestampUnixSeconds;
-    }
-
+public record ExposureInfo(String id, int width, int height, ResourceLocation palette, ExposureData.Tag tag) {
     public static ExposureInfo empty(String exposureId) {
-        return new ExposureInfo(exposureId, 0, 0,  FilmType.COLOR, false, false, 0);
+        return new ExposureInfo(exposureId, 0, 0, ColorPalettes.DEFAULT.location(), ExposureData.Tag.EMPTY);
     }
 
     public boolean isEmpty() {
-        return getWidth() == 0 && getHeight() == 0 && getTimestampUnixSeconds() == 0L;
-    }
-
-    public String getExposureId() {
-        return exposureId;
-    }
-
-    public int getWidth() {
-        return width;
-    }
-
-    public int getHeight() {
-        return height;
-    }
-
-    public FilmType getType() {
-        return type;
-    }
-
-    public boolean wasPrinted() {
-        return wasPrinted;
-    }
-
-    public boolean isLoadedFromFile() {
-        return isLoadedFromFile;
-    }
-
-    public long getTimestampUnixSeconds() {
-        return timestampUnixSeconds;
+        return width() == 0 && height() == 0 && tag().unixTimestamp() == 0L;
     }
 
     public FriendlyByteBuf toBuffer(FriendlyByteBuf buffer) {
-        buffer.writeUtf(exposureId);
+        buffer.writeUtf(id);
         buffer.writeInt(width);
         buffer.writeInt(height);
-        buffer.writeEnum(type);
-        buffer.writeBoolean(wasPrinted);
-        buffer.writeBoolean(isLoadedFromFile);
-        buffer.writeLong(timestampUnixSeconds);
+        buffer.writeResourceLocation(palette);
+        tag.toPacket(buffer);
         return buffer;
     }
 
     public static ExposureInfo fromBuffer(FriendlyByteBuf buffer) {
         return new ExposureInfo(
-                buffer.readUtf(),
-                buffer.readInt(),
-                buffer.readInt(),
-                buffer.readEnum(FilmType.class),
-                buffer.readBoolean(),
-                buffer.readBoolean(),
-                buffer.readLong());
+              buffer.readUtf(),
+              buffer.readInt(),
+              buffer.readInt(),
+              buffer.readResourceLocation(),
+              ExposureData.Tag.fromPacket(buffer));
     }
 }

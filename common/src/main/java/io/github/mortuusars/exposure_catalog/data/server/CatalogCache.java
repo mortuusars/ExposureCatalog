@@ -3,26 +3,20 @@ package io.github.mortuusars.exposure_catalog.data.server;
 import com.google.common.collect.Lists;
 import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure.ExposureServer;
-import io.github.mortuusars.exposure.data.storage.ExposureSavedData;
+import io.github.mortuusars.exposure.data.ColorPalettes;
+import io.github.mortuusars.exposure.world.level.storage.ExposureData;
+import io.github.mortuusars.exposure_catalog.ExposureCatalog;
 import io.github.mortuusars.exposure_catalog.data.ExposureInfo;
 import io.github.mortuusars.exposure_catalog.data.ExposureThumbnail;
-import io.github.mortuusars.exposure_catalog.mixin.ServersideExposureStorageAccessor;
-import net.minecraft.SharedConstants;
 import net.minecraft.Util;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.level.storage.DimensionDataStorage;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
-import java.io.File;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CatalogCache {
     protected Logger LOGGER = LogUtils.getLogger();
-
-    protected File exposuresFolder;
 
     protected AtomicBoolean isBuilding = new AtomicBoolean(false);
     protected ConcurrentMap<String, ExposureInfo> exposures = new ConcurrentHashMap<>();
@@ -62,10 +56,12 @@ public class CatalogCache {
         rebuildCache();
     }
 
-    public void addExposure(String exposureId, ExposureSavedData data) {
-        ExposureInfo exposureData = createExposureData(exposureId, data);
-        exposures.put(exposureId, exposureData);
-        ExposureThumbnail thumbnail = createThumbnail(exposureId, data, getThumbnailSize());
+    public void addExposure(String exposureId, ExposureData data) {
+        ExposureInfo exposureInfo = !data.equals(ExposureData.EMPTY)
+              ? new ExposureInfo(exposureId, data.getWidth(), data.getHeight(), data.getPaletteId(), data.getTag())
+              : ExposureInfo.empty(exposureId);
+        exposures.put(exposureId, exposureInfo);
+        ExposureThumbnail thumbnail = createThumbnail(data, getThumbnailSize());
         thumbnails.put(exposureId, thumbnail);
     }
 
@@ -83,18 +79,11 @@ public class CatalogCache {
         isBuilding.set(true);
 
         try {
-            DimensionDataStorage dataStorage = ((ServersideExposureStorageAccessor) ExposureServer.getExposureStorage())
-                    .getLevelStorageSupplier().get();
-            dataStorage.save();
-
             clear();
-
-            exposuresFolder = ((ServersideExposureStorageAccessor) ExposureServer.getExposureStorage())
-                    .getWorldPathSupplier().get().resolve("data/exposures/").toFile();
 
             LOGGER.info("Building exposures cache...");
 
-            List<String> exposureIds = ExposureServer.getExposureStorage().getAllIds();
+            List<String> exposureIds = ExposureServer.exposureRepository().getAllIds();
 
             if (exposureIds.isEmpty()) {
                 LOGGER.info("No exposures have been found.");
@@ -104,13 +93,13 @@ public class CatalogCache {
             LOGGER.info("Loading {} exposures...", exposureIds.size());
             long start = Util.getMillis();
 
-            List<List<String>> chunks = Lists.partition(exposureIds, 600);
+            List<List<String>> chunks = Lists.partition(exposureIds, ExposureCatalog.EXPOSURES_PER_PAGE);
 
             List<Thread> threads = new ArrayList<>();
 
             for (List<String> chunk : chunks) {
                 Thread thread = new Thread(() ->
-                        processExposures(chunk));
+                      processExposures(chunk));
                 threads.add(thread);
                 thread.start();
             }
@@ -137,50 +126,20 @@ public class CatalogCache {
     }
 
     protected void processExposures(List<String> exposureIds) {
-        DimensionDataStorage dataStorage = ((ServersideExposureStorageAccessor) ExposureServer.getExposureStorage())
-                .getLevelStorageSupplier().get();
-
-        for (String exposureId : exposureIds) {
-            @Nullable ExposureSavedData savedData = loadExposure(exposureId, dataStorage);
-
-            ExposureInfo exposureData = createExposureData(exposureId, savedData);
-            exposures.put(exposureId, exposureData);
-
-            ExposureThumbnail thumbnail = createThumbnail(exposureId, savedData, getThumbnailSize());
-            thumbnails.put(exposureId, thumbnail);
+        for (String id : exposureIds) {
+            ExposureData exposureData = ExposureServer.exposureRepository().load(id).orElse(ExposureData.EMPTY);
+            addExposure(id, exposureData);
         }
     }
 
-    protected int getThumbnailSize() {
+    public int getThumbnailSize() {
         return 54;
     }
 
-    protected @Nullable ExposureSavedData loadExposure(String exposureId, DimensionDataStorage storage) {
-        try {
-            File exposureFile = getDataFile(exposureId);
-
-            if (!exposureFile.exists()) {
-                LOGGER.error("Cannot load exposure '{}': File {} does not exist.", exposureId, exposureFile);
-                return null;
-            }
-
-            CompoundTag exposureTag = storage.readTagFromDisk("exposures/" + exposureId,
-                            SharedConstants.getCurrentVersion().getDataVersion().getVersion())
-                    .getCompound("data");
-            return ExposureSavedData.load(exposureTag);
-        } catch (Exception e) {
-            LOGGER.error("Cannot load exposure '{}': {}", exposureId, e);
+    public ExposureThumbnail createThumbnail(ExposureData exposure, int size) {
+        if (exposure.equals(ExposureData.EMPTY)) {
+            return new ExposureThumbnail(1, 1, new byte[]{0}, ColorPalettes.DEFAULT.location());
         }
-        return null;
-    }
-
-    protected File getDataFile(String name) {
-        return new File(exposuresFolder, name + ".dat");
-    }
-
-    protected ExposureThumbnail createThumbnail(String exposureId, @Nullable ExposureSavedData exposure, int size) {
-        if (exposure == null)
-            return new ExposureThumbnail(exposureId, 1, 1, new byte[]{0});
 
         float scaleFactorX = size / (float) exposure.getWidth();
         float scaleFactorY = size / (float) exposure.getHeight();
@@ -196,19 +155,6 @@ public class CatalogCache {
             }
         }
 
-        return new ExposureThumbnail(exposureId, size, size, pixels);
-    }
-
-    protected ExposureInfo createExposureData(String exposureId, @Nullable ExposureSavedData savedData) {
-        if (savedData == null)
-            return ExposureInfo.empty(exposureId);
-
-        return new ExposureInfo(exposureId,
-                savedData.getWidth(),
-                savedData.getHeight(),
-                savedData.getType(),
-                savedData.getProperties().getBoolean(ExposureSavedData.WAS_PRINTED_PROPERTY),
-                savedData.getProperties().getBoolean(ExposureSavedData.FROM_FILE_PROPERTY),
-                savedData.getProperties().getLong(ExposureSavedData.TIMESTAMP_PROPERTY));
+        return new ExposureThumbnail(size, size, pixels, exposure.getPaletteId());
     }
 }

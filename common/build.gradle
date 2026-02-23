@@ -3,44 +3,43 @@ architectury {
 }
 
 loom {
-    accessWidenerPath = file("src/main/resources/exposure_catalog.accesswidener")
+    accessWidenerPath = file("src/main/resources/${mod_id}.accesswidener")
 }
+
+configurations {
+    create("junit")
+}
+
+sourceSets.main.resources.srcDir 'src/generated/resources'
 
 repositories {
     maven {
         name = "Fuzs Mod Resources"
         url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/"
     }
+    // If you have mod jar dependencies in ./libs, you can declare them as a repository like so:
+    flatDir {
+        dir 'libs'
+    }
 }
 
 dependencies {
-    // We depend on fabric loader here to use the fabric @Environment annotations and get the mixin dependencies
-    // Do NOT use other classes from fabric loader
-    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
-    // Remove the next line if you don't want to depend on the API
-    // modApi "dev.architectury:architectury:${rootProject.architectury_version}"
-    modCompileOnly("curse.maven:architectury-${architectury_cf_version}")
-    modCompileOnly("io.github.mortuusars.exposure:exposure-common:${exposure_version}")
+    // We depend on Fabric Loader here to use the Fabric @Environment annotations,
+    // which get remapped to the correct annotations on each platform.
+    // Do NOT use other classes from Fabric Loader.
+    modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+    compileOnly "fuzs.forgeconfigapiport:forgeconfigapiport-common:$forge_config_api_port_version"
 
-    compileOnly("net.luckperms:api:${luckperms_api_version}")
+    modImplementation("io.github.mortuusars.exposure:exposure-${minecraft_version}-common:${exposure_version}")
+
+    testImplementation(platform("org.junit:junit-bom:${project.property("jupiterVersion")}"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    "junit"(platform("org.junit:junit-bom:${project.property("jupiterVersion")}"))
+    "junit"("org.junit.jupiter:junit-jupiter")
 }
 
-publishing {
-    publications {
-        mavenCommon(MavenPublication) {
-            artifactId = mod_id + "-" + project.name
-            from components.java
-        }
-    }
-
-    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-    repositories {
-        var path = System.getenv("LOCAL_MAVEN")
-        if (path != null) {
-            maven {
-                name = 'local'
-                url = uri(path + "/maven")
-            }
-        }
+tasks {
+    test {
+        useJUnitPlatform()
     }
 }

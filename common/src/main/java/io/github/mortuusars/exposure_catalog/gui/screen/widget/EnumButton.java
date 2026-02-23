@@ -3,11 +3,11 @@ package io.github.mortuusars.exposure_catalog.gui.screen.widget;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.mojang.blaze3d.platform.InputConstants;
-import com.mojang.blaze3d.systems.RenderSystem;
+import io.github.mortuusars.exposure.ModWidgetSprites;
+import io.github.mortuusars.exposure.client.gui.Widgets;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.ImageButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.navigation.CommonInputs;
 import net.minecraft.client.gui.screens.Screen;
@@ -16,25 +16,32 @@ import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public class EnumButton<T extends Enum<T>> extends ImageButton {
-    private final OnStateChanged<T> onStateChanged;
-    private final List<T> states;
-    private final int xDiffTex;
+public class EnumButton<T extends Enum<T>> extends Button {
+    protected final List<T> states;
+    protected final Map<T, ModWidgetSprites> sprites;
+    protected final OnStateChanged<T> onStateChanged;
 
-    private int currentStateIndex;
-    private @Nullable Function<T, Tooltip> tooltipFunc;
-    private @Nullable Tooltip defaultTooltip;
+    protected int currentStateIndex;
+    protected @Nullable Function<T, Tooltip> tooltipFunc;
+    protected @Nullable Tooltip defaultTooltip;
 
-    public EnumButton(Class<T> enumClass, int x, int y, int width, int height, int xTexStart, int yTexStart,
-                      int xDiffTex, int yDiffTex, ResourceLocation textureLocation, int textureWidth, int textureHeight,
+    public EnumButton(Class<T> enumClass, int x, int y, int width, int height, ResourceLocation sprite, int spriteWidth, int spriteHeight,
                       OnStateChanged<T> onStateChanged, Component message) {
-        super(x, y, width, height, xTexStart, yTexStart, yDiffTex, textureLocation, textureWidth, textureHeight, b -> {}, message);
-        this.onStateChanged = onStateChanged;
+        super(x, y, width, height, message, b -> {}, n -> Component.empty());
         this.states = Arrays.asList(enumClass.getEnumConstants());
+        this.sprites = new HashMap<>();
+        this.onStateChanged = onStateChanged;
         this.currentStateIndex = 0;
-        this.xDiffTex = xDiffTex;
+
+        for (T state : states) {
+            String name = state.name().toLowerCase();
+            ModWidgetSprites sprites = Widgets.threeStateSprites(sprite.withSuffix("_" + name), spriteWidth, spriteHeight);
+            this.sprites.put(state, sprites);
+        }
     }
 
     public T getState() {
@@ -42,7 +49,7 @@ public class EnumButton<T extends Enum<T>> extends ImageButton {
     }
 
     public void setState(T state) {
-        currentStateIndex = state.ordinal();
+        setStateIndex(state.ordinal());
     }
 
     public void setStateIndex(int index) {
@@ -50,12 +57,29 @@ public class EnumButton<T extends Enum<T>> extends ImageButton {
         currentStateIndex = index;
     }
 
+    public void changeState(T state) {
+        T previousState = getState();
+        if (!previousState.equals(state)) {
+            setState(state);
+            onStateChanged.onStateChanged(this, previousState, state);
+        }
+    }
+
+    public void changeStateIndex(int index) {
+        int previousIndex = currentStateIndex;
+        if (previousIndex != index) {
+            setStateIndex(index);
+            onStateChanged.onStateChanged(this, states.get(previousIndex), states.get(index));
+        }
+    }
+
     public void previousState() {
-        currentStateIndex = (currentStateIndex - 1 + states.size()) % states.size();
+        changeStateIndex((currentStateIndex - 1 + states.size()) % states.size());
+
     }
 
     public void nextState() {
-        currentStateIndex = (currentStateIndex + 1) % states.size();
+        changeStateIndex((currentStateIndex + 1) % states.size());
     }
 
     public void setDefaultTooltip(@Nullable Tooltip tooltip) {
@@ -67,40 +91,26 @@ public class EnumButton<T extends Enum<T>> extends ImageButton {
     }
 
     @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        if (isHoveredOrFocused())
+    public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        if (isHoveredOrFocused()) {
             setTooltip(tooltipFunc != null ? tooltipFunc.apply(getState()) : defaultTooltip);
-
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
-    }
-
-    @Override
-    public void renderTexture(GuiGraphics guiGraphics, ResourceLocation texture, int x, int y, int uOffset, int vOffset, int yDiffTex, int width, int height, int textureWidth, int textureHeight) {
-        int xTex = uOffset + (xDiffTex * currentStateIndex);
-        int yTex = vOffset;
-        if (!this.isActive()) {
-            yTex = vOffset + yDiffTex * 2;
-        } else if (this.isHoveredOrFocused()) {
-            yTex = vOffset + yDiffTex;
         }
 
-        RenderSystem.enableDepthTest();
-        guiGraphics.blit(texture, x, y, xTex, yTex, width, height, textureWidth, textureHeight);
+        ModWidgetSprites sprites = this.sprites.get(getState());
+        ResourceLocation resourceLocation = sprites.get(this.isActive(), this.isHoveredOrFocused());
+        guiGraphics.blit(resourceLocation, this.getX(), this.getY(), 0, 0, this.width, this.height, width, height);
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (isActive() && clicked(mouseX, mouseY)) {
-            int prevIndex = currentStateIndex;
-
-            if (button == InputConstants.MOUSE_BUTTON_RIGHT)
+            if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
                 previousState();
-            else
+            } else {
                 nextState();
+            }
 
             playDownSound(Minecraft.getInstance().getSoundManager());
-            onStateChanged.onStateChanged(this, states.get(prevIndex), states.get(currentStateIndex));
-            onClick(mouseX, mouseY);
             return true;
         }
 
@@ -110,15 +120,13 @@ public class EnumButton<T extends Enum<T>> extends ImageButton {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         if (isActive() && clicked(mouseX, mouseY)) {
-            int prevIndex = currentStateIndex;
-
-            if (delta < 0)
+            if (delta < 0) {
                 previousState();
-            else
+            } else {
                 nextState();
+            }
 
             playDownSound(Minecraft.getInstance().getSoundManager());
-            onStateChanged.onStateChanged(this, states.get(prevIndex), states.get(currentStateIndex));
             return true;
         }
 
@@ -128,16 +136,13 @@ public class EnumButton<T extends Enum<T>> extends ImageButton {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (isActive() && CommonInputs.selected(keyCode)) {
-            int prevIndex = currentStateIndex;
-
-            if (Screen.hasShiftDown())
+            if (Screen.hasShiftDown()) {
                 previousState();
-            else
+            } else {
                 nextState();
+            }
 
             playDownSound(Minecraft.getInstance().getSoundManager());
-            onStateChanged.onStateChanged(this, states.get(prevIndex), states.get(currentStateIndex));
-            onPress();
             return true;
         }
 
@@ -145,6 +150,6 @@ public class EnumButton<T extends Enum<T>> extends ImageButton {
     }
 
     public interface OnStateChanged<T extends Enum<T>> {
-        void onStateChanged(Button button, T previousState, T newState);
+        void onStateChanged(EnumButton<T> button, T previousState, T newState);
     }
 }

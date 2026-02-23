@@ -4,13 +4,9 @@ import com.mojang.logging.LogUtils;
 import io.github.mortuusars.exposure_catalog.data.client.CatalogReceiver;
 import io.github.mortuusars.exposure_catalog.data.client.CatalogClient;
 import io.github.mortuusars.exposure_catalog.gui.screen.CatalogScreen;
-import io.github.mortuusars.exposure_catalog.gui.screen.OverlayScreen;
-import io.github.mortuusars.exposure_catalog.network.packet.client.*;
+import io.github.mortuusars.exposure_catalog.network.packet.clientbound.*;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.Screen;
 import org.slf4j.Logger;
-
-import java.util.Optional;
 
 public class ClientPacketsHandler {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -25,7 +21,7 @@ public class ClientPacketsHandler {
         });
     }
 
-    public static void receiveExposuresPart(SendExposuresDataPartS2CP packet) {
+    public static void receiveExposureInfosPart(SendExposureInfosPartS2CP packet) {
         executeOnMainThread(() -> {
             CatalogReceiver.receivePart(packet.exposures(), packet.partIndex(), packet.isLastPart());
         });
@@ -33,7 +29,7 @@ public class ClientPacketsHandler {
 
     public static void receiveExposureThumbnail(SendExposureThumbnailS2CP packet) {
         executeOnMainThread(() -> {
-            CatalogClient.setThumbnail(packet.thumbnail());
+            CatalogClient.setThumbnail(packet.id(), packet.thumbnail());
         });
     }
 }
