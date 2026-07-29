@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.2 - 2026-07-29
+- [NeoForge] Fixed mod icon missing
+
 ## 1.1.1 - 2025-07-31
 - Fixed log spam in "textures" mode with certain non-image files (happened with Modonomicon).
 
